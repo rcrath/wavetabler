@@ -1,12 +1,12 @@
 # wavetabler
- Create wavetables for Serum, VItal, etc from any short mono wav file
+ Create wavetables for Serum, Vital, etc from any short mono wav file
 
  ## description
- wavetabler creates 2048 sample X 256 frames wavetables that can be imported as fixed size 2048 in Serum's wavetable editor import screen.  Have not tested on other synths but should be able to figure it out if you rtm for that synth I thnk.  
+ wavetabler creates 2048 sample X 256 frames wavetables that can be imported as fixed size 2048 in Serum's wavetable editor import screen.  Have not tested on other synths but should be able to figure it out if you rtm for that synth I think.  
 
- This is an alpha release.  It works for me, ymmv.  I have a linux and windows box and have tested it on both.
+ This is an alpha release.  It works for me, ymmv.  I have a Linux and windows box and have tested it on both.
 
- my packaging skills are not there yet, so for now, download or clone the repository and copy the top folder (wavetabler) to where you wnat to run it. if you cloned it, you definitely want to work form a dedicated separate folder outside your git folder because we will create and delete tons of files.  CD into  wavetabler folder.  There you will find the following tree:  
+ My packaging skills are not there yet, so for now, download or clone the repository and copy the top folder (wavetabler) to where you wnat to run it. if you cloned it, you definitely want to work form a dedicated separate folder outside your git folder because we will create and delete tons of files.  CD into  wavetabler folder.  There you will find the following tree:  
 
  from within wavetabler, open a command prompt, 
 
@@ -82,12 +82,14 @@ you have to set the permissions for it to execute the first time:
 
 ## Creating your own wavetables
 
-Copoy some samples you want to convert to wavetables to the `wavetabler/imput` folder.  They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher sample rates and bit depths will help with the quality of the results. For now the files must be mono.  While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice, make sure you save it to mono.  
+Copy some samples you want to convert to wavetables to the `wavetabler/imput` folder.  They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher sample rates and bit depths will help with the quality of the results. For now the files must be mono.  While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice, make sure you save it to mono.  
 
-run `wvtbl` and select from the attanding file menu. accept defaults, and look in your `wavetables` folder for your finished wavetables. 
+run `wvtbl` and select from the attending file menu. accept defaults, and look in your `wavetables` folder for your finished wavetables. 
 
 ## Loading into Serum (and other wavetable synths)
-I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the edit menu choose `import-fixed-frame` and enter 2048.  Your oscilator will load up the wavetable you selected from the output folder.
+I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the import menu choose `import-fixed-frame` and enter 2048.  Your oscillator will load up the wavetable you select from the output folder.
 
 ## Advanced 
+- **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  hang tight, will fix it soon, but for now avoid.  
+
 TBD. If you do not accept defaults, you get an advanced series of prompts, which can help if your wavetables are not to your liking.  I have tried to make the choices clear in the script and will later provide some details about how to choose among the options.  

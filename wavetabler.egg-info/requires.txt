@@ -1,9 +1,0 @@
-numpy
-scipy
-librosa
-resampy
-soundfile
-pydub
-matplotlib
-pandas
-tabulate
