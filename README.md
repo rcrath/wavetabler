@@ -65,12 +65,20 @@ from your command prompt in the wavetabler folder, run:
 `setpy`
 You only need to do this once.  
 
-###MacOS (untested) or Linux 
+### MacOS (untested) or Linux 
 from a command prompt in the wavetabler folder run `chmod +x setpy.sh)` and then `./setpy.sh`
 You only need to do this once.  
 
 ## Test Run
-run a test on the example input files: type `wvtbl` from you command prompt and choose one of the two sample files.  when it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder.
+run a test on the example input files: 
+
+### Windows: 
+type `wvtbl` from you command prompt and choose one of the two sample files.  when it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder.
+
+### Mac/:inux: 
+you have to set the permissions for it to execute the first time:
+ `chmod +x wvtbl.sh)` and then `./wvtbl.sh` runs it
+``
 
 ## Creating your own wavetables
 
