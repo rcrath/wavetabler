@@ -1,0 +1,1 @@
+Put short ( 5-10 seconds max) wav format files you want wavetables from in this folder. They can be any sample rate or bitd depth, but for now they must be mono.  

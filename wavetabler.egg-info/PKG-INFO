@@ -1,0 +1,16 @@
+Metadata-Version: 2.1
+Name: wavetabler
+Version: 1.0
+Summary: Wavetabler: A tool for generating wavetables from audio files
+Author: Your Name
+License: MIT
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: librosa
+Requires-Dist: resampy
+Requires-Dist: soundfile
+Requires-Dist: pydub
+Requires-Dist: matplotlib
+Requires-Dist: pandas
+Requires-Dist: tabulate
