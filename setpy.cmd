@@ -1,3 +1,4 @@
+
 python3.11 -m venv wvtbl_win
 call wvtbl_win\Scripts\activate && pip install -r requirements.txt
 
