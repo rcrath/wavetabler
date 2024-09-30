@@ -78,7 +78,7 @@ def get_src_folder():
 
 def get_src_file():
     """Return the full path to the source file inside 'src' folder."""
-    return _src_file
+    return _start_file
 
 def input_with_quit(prompt=""):
     user_input = input(prompt).strip().lower()

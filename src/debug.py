@@ -6,7 +6,6 @@ import os
 import soundfile as sf
 import numpy as np
 import re
-from aa_common import is_rising_from_zero, is_rising_to_zero
 
 # Define the threshold in amplitude (equivalent to -60 dB)
 THRESHOLD_DB = -60
@@ -100,6 +99,8 @@ def count_files_with_regex(folder, pattern):
     return len(matched_files), matched_files
 
 def run_debug(current_folder=None):
+    from aa_common import is_rising_from_zero, is_rising_to_zero
+
     if current_folder:
         tmp_folder = os.path.join(current_folder, 'tmp')
     else:

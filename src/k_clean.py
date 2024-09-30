@@ -3,11 +3,11 @@
 
 import os
 import shutil
-from aa_common import input_with_quit, input_with_defaults, get_base, perform_cleanup, delete_base_folder
 import debug  # Import the debug script when needed
 
 def run():
     # Get the base folder directly
+    from aa_common import input_with_quit, input_with_defaults, get_base, perform_cleanup, delete_base_folder
     base_folder = get_base()
 
     # Print the base folder path for verification

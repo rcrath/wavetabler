@@ -45,7 +45,7 @@ def run_segment(file_path):
             # Start of a new segment
             in_segment = True
             prev_start_index = i
-            # print(f"Segment started at index {i}")
+            print(f"Segment started at index {i}")
 
         if in_segment and is_rising_zero_crossing_seg(data, i):
             # End of the current segment
@@ -56,9 +56,9 @@ def run_segment(file_path):
 
                 # Save the segment
                 sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-                # print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
+                print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
             else:
-                # print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
+                print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
                 continue
             # Prepare for the next segment
             in_segment = False
@@ -72,11 +72,11 @@ def run_segment(file_path):
 
             # Save the final segment
             sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-            # print(f"Final segment saved: {segment_name}, length: {len(wave_cycle)}")
+            print(f"Final segment saved: {segment_name}, length: {len(wave_cycle)}")
         else:
-            # print(f"Skipped saving final segment: too short (length={len(wave_cycle)})")
+            print(f"Skipped saving final segment: too short (length={len(wave_cycle)})")
             pass
-    # print(f"Segmentation complete. Total segments: {len(segment_sizes)}")
+    print(f"Segmentation complete. Total segments: {len(segment_sizes)}")
     return segment_sizes
 
 # Validation Process
@@ -92,7 +92,7 @@ def validate_all_segments(seg_folder):
                 # (f"Segment {segment_file} failed validation.")
                 return False  # If any segment fails, return false
 
-    # print("All segments passed validation.")
+    print("All segments passed validation.")
     return True
 
 def check_segment_file(segment_path):
@@ -101,16 +101,16 @@ def check_segment_file(segment_path):
 
     # Check for rising from zero at the start
     if len(data) < 8:
-        # print(f"Segment {segment_path} is too short to validate.")
+        print(f"Segment {segment_path} is too short to validate.")
         return False
 
     if not aa_common.is_rising_from_zero(data[:8]):
-        # print(f"Segment {segment_path} failed: no valid rising-from-zero at the start.")
+        print(f"Segment {segment_path} failed: no valid rising-from-zero at the start.")
         return False
 
     # Check for rising to zero at the end
     if not aa_common.is_rising_to_zero(data[-8:]):
-        # print(f"Segment {segment_path} failed: no valid rising-to-zero at the end.")
+        print(f"Segment {segment_path} failed: no valid rising-to-zero at the end.")
         return False
 
     return True

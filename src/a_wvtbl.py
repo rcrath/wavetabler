@@ -10,50 +10,80 @@ import h_interpolate
 import j_wvtblr 
 import k_clean  
 import aa_common
+import shutil
 
-def main():
-    # Initialize settings
-    settings = aa_common.initialize_settings()
 
-    # Run the menu to select the source file
-    selected_file_details = b_menu.run()
+def process_single_file(file_name):
+    # Initialize settings for each file to ensure clean state
+    aa_common.global_settings = aa_common.initialize_settings()  # Reset settings for each file
+
+    # Update the source file to the current file being processed
+    aa_common._start_file_name = file_name
+    aa_common._start_file = os.path.join(aa_common.source_folder, file_name)
+    aa_common._base = os.path.splitext(file_name)[0]
+    aa_common.tmp_folder = os.path.join(aa_common._base, "tmp")
+
+    print(f"Processing {file_name}...")
+
+    # Ensure tmp/seg and tmp/frames folders are created
+    seg_folder = os.path.join(aa_common.tmp_folder, "seg")
+    if not os.path.exists(seg_folder):
+        os.makedirs(seg_folder)  # Create the seg folder if it doesn't exist
+
+    frames_folder = os.path.join(aa_common.tmp_folder, "frames")
+    if not os.path.exists(frames_folder):
+        os.makedirs(frames_folder)  # Create the frames folder if it doesn't exist
+
+    concat_folder = os.path.join(aa_common.tmp_folder, "concat")
+    if not os.path.exists(concat_folder):
+        os.makedirs(concat_folder)  # Create the concat folder if it doesn't exist
+    
+    # Ensure that tmp/src folder is created
+    src_folder = os.path.join(aa_common.tmp_folder, "src")
+    os.makedirs(src_folder, exist_ok=True)
+
+    # Copy the current source file into the src folder
+    shutil.copy2(aa_common._start_file, src_folder)
 
     # Run the upsampling
     processed_files = c_upsample.run()
 
-    tmp_folder = aa_common.get_tmp_folder()
-
-    # Initialize segment variables
-    total_segments = total_deviant_segments = total_normal_segments = total_attack_segments = 0
-    first_iteration = True
-    
-
     # Run segmentation for each processed file and collect wavecycle samples
     e_seg.run(processed_files)
 
-
-
     # Run sorting
     total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, lower_bound_samples, upper_bound_samples = f_sort.run(
-        settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, first_iteration, processed_files
+        aa_common.global_settings, 0, 0, 0, 0, True, processed_files
     )
 
     # Choose settings and update settings
-    settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, first_iteration, lower_bound_samples, upper_bound_samples, atk_deleted, dev_deleted, normal_deleted = g_choose.run(
-        settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, first_iteration, lower_bound_samples, upper_bound_samples
+    aa_common.global_settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, first_iteration, lower_bound_samples, upper_bound_samples, atk_deleted, dev_deleted, normal_deleted = g_choose.run(
+        aa_common.global_settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, True, lower_bound_samples, upper_bound_samples
     )
+
     # Proceed to interpolation step
-    h_interpolate.run(
-        total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, settings
-    )
+    h_interpolate.run(total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, aa_common.global_settings)
 
     # Call j_wvtblr to generate the final wavetable
     j_wvtblr.run(atk_deleted, dev_deleted, normal_deleted)
 
-    # Cleanup temporary files
+    # Cleanup temporary files for this file
     k_clean.run()
-    print("\n\nSUCCESS\n\n")
+    print(f"Finished processing {file_name}.\n")
 
+
+def main():
+    # Initialize settings
+    aa_common.global_settings = aa_common.initialize_settings()
+
+    # Run the menu to select the source file(s)
+    selected_files = b_menu.run()
+
+    # If multiple files are selected, run in batch mode
+    for file_name in selected_files:
+        process_single_file(file_name)
+
+    print("\n\nSUCCESS\n\n")
 
 if __name__ == "__main__":
     main()

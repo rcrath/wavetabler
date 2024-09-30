@@ -3,12 +3,14 @@
 import os
 import numpy as np
 import soundfile as sf
-import resampy
 import re
-from aa_common import input_with_quit, input_with_defaults, get_segment_sizes, get_base, get_tmp_folder, interpolate_seg, get_wavecycle_samples_target
 
-# Function to perform interpolation
+# Move imports inside the function to avoid circular import issues
+
 def run(total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, settings):
+    # Import inside the function to avoid circular import
+    from aa_common import get_base, get_tmp_folder, get_segment_sizes, interpolate_seg, get_wavecycle_samples_target
+    
     base = get_base()
     tmp_folder = get_tmp_folder()
     seg_folder = os.path.join(tmp_folder, 'seg')  # Correct folder for segmented files
@@ -30,22 +32,21 @@ def run(total_segments, total_deviant_segments, total_normal_segments, total_att
     print("\nInterpolating...")
 
     # Iterate through all files in the seg folder, filtering with the regex pattern
-    for file in os.listdir(seg_folder):  # Adjusted to use seg_folder
+    for file in os.listdir(seg_folder):
         if pattern.match(file):
-            # Process only files matching the pattern
-            seg_file_path = os.path.join(seg_folder, file)  # Adjusted to use seg_folder
+            seg_file_path = os.path.join(seg_folder, file)
 
             # Read the original segment and proceed with interpolation
             data, samplerate = sf.read(seg_file_path)
             info = sf.info(seg_file_path)
 
             # Determine the correct subtype for writing
-            write_subtype = 'FLOAT'  # Default to FLOAT for compatibility
+            write_subtype = 'FLOAT'
             if info.subtype in ['PCM_16', 'PCM_24', 'PCM_32']:
                 write_subtype = info.subtype
 
             # Apply interpolation to adjust the segment length
-            interpolated_segment = interpolate_seg(data, samplerate)  # Remove wavecycle_samples_target
+            interpolated_segment = interpolate_seg(data, samplerate)
 
             # Write the interpolated segment to the 'frames' folder
             single_cycles_192k32b_path = os.path.join(singles_folder, file)

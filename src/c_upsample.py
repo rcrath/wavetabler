@@ -9,7 +9,7 @@ import numpy as np
 
 # New global variable for threshold factor and size
 thresh_factor = 4  # Multiplier for the threshold size (can be easily changed)
-thresh_size = aa_common.wavecycle_size * aa_common.frame_count * thresh_factor
+thresh_size = 2048 * 256 * thresh_factor
 
 
 def load_audio(file_path):

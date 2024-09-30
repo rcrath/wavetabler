@@ -34,9 +34,6 @@ def list_wav_files_with_details(source_folder):
 
     return file_details
 
-
-
-
 def print_file_details(file_details):
     """
     Print file details in a readable table format, including the ratio of samples/524,288.
@@ -56,41 +53,63 @@ def print_file_details(file_details):
     print("\n\nSource Files:")
     print(tabulate(table_data, headers=headers, tablefmt="plain"))
 
+def parse_file_selection(selection, total_files):
+    """
+    Parse the user's selection input, allowing for comma-separated numbers and ranges.
+    """
+    selected_indices = set()
+    
+    try:
+        parts = selection.split(',')
+        for part in parts:
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                selected_indices.update(range(start, end + 1))
+            else:
+                selected_indices.add(int(part))
+    except ValueError:
+        print("Invalid input format. Please use numbers, commas, and ranges like '1,3,5-7'.")
+        return None
+    
+    # Ensure the selected indices are valid
+    selected_indices = {i for i in selected_indices if 1 <= i <= total_files}
+    
+    if not selected_indices:
+        print("No valid file indices selected. Please try again.")
+        return None
+    
+    return sorted(selected_indices)
 
 def run():
     # List and display WAV files with details
     file_details = list_wav_files_with_details(aa_common.source_folder)
     print_file_details(file_details)
 
-    # Prompt user to select a file
+    # Prompt user to select one or more files
     while True:
-        selection = input("\nEnter the number of the file to select, or type 'q' to exit: ").strip()
+        selection = input("\nEnter the number(s) of the file(s) to select (comma-separated for multiple or a range like 1-3), or type 'q' to exit: ").strip()
         if selection.lower() == 'q':
             print("Quitting script.")
             exit()
 
-        try:
-            selected_index = int(selection) - 1
-            if 0 <= selected_index < len(file_details):
-                selected_file = file_details[selected_index]['file_name']
-                aa_common._start_file_name = selected_file
-                aa_common._start_file = os.path.join(aa_common.source_folder, selected_file)
-                aa_common._base = os.path.splitext(selected_file)[0]
-                aa_common.tmp_folder = os.path.join(aa_common._base, "tmp")
-                print(f"Selected: {selected_file}")
+        selected_indices = parse_file_selection(selection, len(file_details))
+        if selected_indices:
+            selected_files = [file_details[i - 1]['file_name'] for i in selected_indices]
+            print(f"Selected: {', '.join(selected_files)}")
 
-                break
-            else:
-                print("Invalid selection. Please try again.")
-        except ValueError:
-            print("Please enter a valid number or 'q'.")
+            # Store selected files in aa_common
+            aa_common._start_file_name = selected_files[0]  # In batch mode, we only set the first one here
+            aa_common._start_files = selected_files
+            aa_common._base = os.path.splitext(selected_files[0])[0]
+            aa_common.tmp_folder = os.path.join(aa_common._base, "tmp")
+            
+            break
 
     # prompt to accept ALL defaults
     accept_defaults = aa_common.input_with_defaults("\nAccept all defaults (try this first!) Y/n: ", default="y")
 
     if accept_defaults == "y":
         aa_common.accept_all_defaults = True  # Set the global flag to accept defaults
-
 
     # Check if tmp folder exists before proceeding
     tmp_folder = aa_common.get_tmp_folder()
@@ -106,12 +125,13 @@ def run():
         # If the tmp folder does not exist, create it
         aa_common.ensure_tmp_folder()
 
-    # Create the 'src' folder inside tmp and copy the chosen source file there
+    # Create the 'src' folder inside tmp and copy the chosen source file(s) there
     src_folder = os.path.join(aa_common.tmp_folder, "src")
     os.makedirs(src_folder, exist_ok=True)
-    shutil.copy2(aa_common._start_file, src_folder)
 
-    # Update variables to point to the new source file inside 'src' folder
-    aa_common._src_file = os.path.join(src_folder, aa_common._start_file_name)
+    for file_name in selected_files:
+        source_file_path = os.path.join(aa_common.source_folder, file_name)
+        shutil.copy2(source_file_path, src_folder)
 
-    # Everything is now set to use the source file in the 'src' folder.
+    # Return the selected files list
+    return selected_files
