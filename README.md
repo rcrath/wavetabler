@@ -69,6 +69,9 @@ You only need to do this once.
 from a command prompt in the wavetabler folder run `chmod +x setpy.sh)` and then `./setpy.sh`
 You only need to do this once.  
 
+## warning: 
+pause dropbox or any other cloud serive while running the script or run it outside of the dropbox folder.  If you get a permissions error, that is usually the cause.  
+
 ## Test Run
 run a test on the example input files: 
 
