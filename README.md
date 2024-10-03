@@ -8,7 +8,7 @@
 
  My packaging skills are not there yet, so for now, download or clone the repository and copy the top folder (wavetabler) to where you wnat to run it. if you cloned it, you definitely want to work form a dedicated separate folder outside your git folder because we will create and delete tons of files.  CD into  wavetabler folder.  There you will find the following tree:  
 
- from within wavetabler, open a command prompt, 
+ 
 
  ```
 wavetabler
@@ -59,6 +59,7 @@ wavetabler
 ## setup
 
 You need to set the project up first, Make sure you have python installed. If the script fails, find the python 3.11 version from the python site and install that, even if you already have another version of python installed.  when installing, no need to set it as your main python, just install it as usual and let it go. the setpy commands will take care of using this version.
+Download the zip file just above and to the right of the file listing. 
 
 ### Windows 
 from your command prompt in the wavetabler folder, run:
