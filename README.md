@@ -6,9 +6,9 @@
 
  This is an alpha release.  It works for me, ymmv.  I have a Linux and a Windows box and have tested it on both.
 
-To download, click where it says "code" just above and to the right of the file listing and Download the zip file. 
+To download, click where it says "code" [on the github page](https://github.com/rcrath/wavetabler) just above and to the right of the file listing and download the zip file. 
 
-move the zip file to where you want to run it, referably outside the reach of cloud services like dropbox and one drive since the scripts generate scads of tmp files and cloud services try to grab the all and interfere with the script. 
+move the zip file to where you want to run it, referably outside the reach of cloud services like dropbox and onedrive since the scripts generate scads of tmp files and cloud services try to grab them all and interfere with the script. 
 
 Unzip the file and then navigate into the wavetabler folder.  There you will find the following tree:  
 
@@ -60,7 +60,7 @@ wavetabler
 
 ## setup
 
-You need to set the project up first, Make sure you have python installed. If the script fails, find the python 3.11 version from the python site and install that, even if you already have another version of python installed.  When installing, no need to set it as your main python, just install it as usual and let it go. The setpy commands will take care of using this version
+You need to set the project up first, Make sure you have python installed. If the script fails, install [python 3.11.9](https://www.python.org/downloads/release/python-3119/), even if you already have another version of python installed.  When installing, no need to set it as your main python, just install it as usual and let it go. The setpy commands will take care of using this version.
 
 on all platforms, you will need to open a terminal and navigate ti the wavetabler folder you just unzipped. 
 ### Windows 
