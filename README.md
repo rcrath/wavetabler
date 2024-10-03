@@ -59,15 +59,21 @@ wavetabler
 ## setup
 
 You need to set the project up first, Make sure you have python installed. If the script fails, find the python 3.11 version from the python site and install that, even if you already have another version of python installed.  when installing, no need to set it as your main python, just install it as usual and let it go. the setpy commands will take care of using this version.
-Download the zip file just above and to the right of the file listing. 
+click where it says code just above and to the right of the file listing and Download the zip file. 
+Unzip it where you want to work, preferably outside the reach of cloud services like dropbox and one drive since the scripts generate scads of tmp files and cloud services try to grab the all and interfere with the script. 
 
+on all platforms, you will need to open a terminal and navigate ti the wavetabler folder you just unzipped. 
 ### Windows 
 from your command prompt in the wavetabler folder, run:
 `setpy`
 You only need to do this once.  
 
 ### MacOS (untested) or Linux 
-from a command prompt in the wavetabler folder run `chmod +x setpy.sh)` and then `./setpy.sh`
+
+Make your two launchers executable. From a command prompt in the wavetablers folder, you only need to enter this once:
+`chmod +x *.sh`
+Then enter
+`./setpy.sh`
 You only need to do this once.  
 
 ## warning: 
@@ -80,18 +86,17 @@ run a test on the example input files:
 type `wvtbl` from you command prompt and choose one of the two sample files.  when it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder.
 
 ### Mac/:inux: 
-you have to set the permissions for it to execute the first time:
- `chmod +x wvtbl.sh)` and then `./wvtbl.sh` runs it
-``
+Enter
+`./wvtbl.sh` 
 
 ## Creating your own wavetables
 
-Copy some samples you want to convert to wavetables to the `wavetabler/imput` folder.  They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher sample rates and bit depths will help with the quality of the results. For now the files must be mono.  While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice, make sure you save it to mono.  
+Copy some samples you want to convert to wavetables to the `wavetabler/imput` folder.  They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher sample rates and bit depths will help with the quality of the results. stereo files in the input folder get converted to mono, so make sure you kaeep a copy somewhere. While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice.  
 
-run `wvtbl` and select from the attending file menu. accept defaults, and look in your `wavetables` folder for your finished wavetables. 
+run `wvtbl` on windows or ./wvrbl.sh fromMacOS or Linux and select from the attending file menu. once you select a file or files, accept defaults, and look in your `wavetables` subfolder for your finished wavetables nce the script finishes. 
 
 ## Loading into Serum (and other wavetable synths)
-I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the import menu choose `import-fixed-frame` and enter 2048.  Your oscillator will load up the wavetable you select from the output folder.
+I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the import menu choose `import-fixed-frame` pick a wavetable and enter 2048 when prompted.  Your oscillator will load up the wavetable you select from the wavetables subfolder.
 
 ## Advanced 
 - **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  hang tight, will fix it soon, but for now avoid.  
