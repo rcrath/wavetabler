@@ -6,7 +6,7 @@
 
  This is an alpha release.  It works for me, ymmv.  I have a Linux and a Windows box and have tested it on both.
 
-To download, click where it says code just above and to the right of the file listing and Download the zip file. 
+To download, click where it says "code" just above and to the right of the file listing and Download the zip file. 
 
 move the zip file to where you want to run it, referably outside the reach of cloud services like dropbox and one drive since the scripts generate scads of tmp files and cloud services try to grab the all and interfere with the script. 
 
