@@ -1,5 +1,5 @@
 # wavetabler
- Create wavetables for Serum, Vital, etc from any short mono wav file
+ Create wavetables for Serum, Vital, etc from any short wav file.
 
  ## description
  wavetabler creates 2048 sample X 256 frames wavetables that can be imported as fixed size 2048 in Serum's wavetable editor import screen.  Have not tested on other synths but should be able to figure it out if you rtm for that synth I think.  
