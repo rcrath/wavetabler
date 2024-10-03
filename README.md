@@ -4,11 +4,13 @@
  ## description
  wavetabler creates 2048 sample X 256 frames wavetables that can be imported as fixed size 2048 in Serum's wavetable editor import screen.  Have not tested on other synths but should be able to figure it out if you rtm for that synth I think.  
 
- This is an alpha release.  It works for me, ymmv.  I have a Linux and windows box and have tested it on both.
+ This is an alpha release.  It works for me, ymmv.  I have a Linux and a Windows box and have tested it on both.
 
- My packaging skills are not there yet, so for now, download or clone the repository and copy the top folder (wavetabler) to where you wnat to run it. if you cloned it, you definitely want to work form a dedicated separate folder outside your git folder because we will create and delete tons of files.  CD into  wavetabler folder.  There you will find the following tree:  
+To download, click where it says code just above and to the right of the file listing and Download the zip file. 
 
- 
+move the zip file to where you want to run it, referably outside the reach of cloud services like dropbox and one drive since the scripts generate scads of tmp files and cloud services try to grab the all and interfere with the script. 
+
+Unzip the file and then navigate into the wavetabler folder.  There you will find the following tree:  
 
  ```
 wavetabler
@@ -58,9 +60,7 @@ wavetabler
 
 ## setup
 
-You need to set the project up first, Make sure you have python installed. If the script fails, find the python 3.11 version from the python site and install that, even if you already have another version of python installed.  when installing, no need to set it as your main python, just install it as usual and let it go. the setpy commands will take care of using this version.
-click where it says code just above and to the right of the file listing and Download the zip file. 
-Unzip it where you want to work, preferably outside the reach of cloud services like dropbox and one drive since the scripts generate scads of tmp files and cloud services try to grab the all and interfere with the script. 
+You need to set the project up first, Make sure you have python installed. If the script fails, find the python 3.11 version from the python site and install that, even if you already have another version of python installed.  When installing, no need to set it as your main python, just install it as usual and let it go. The setpy commands will take care of using this version
 
 on all platforms, you will need to open a terminal and navigate ti the wavetabler folder you just unzipped. 
 ### Windows 
@@ -75,30 +75,35 @@ Make your two launchers executable. From a command prompt in the wavetablers fol
 Then enter
 `./setpy.sh`
 You only need to do this once.  
+possible problem: if you are on Manjaro, Arch, or any Arch-derived Linux that uses Pacman, you might have to run the following command after setpy.sh:
+`pip install numpy scipy librosa resampy soundfile pydub matplotlib pandas tabulate` 
+because they wont install from the script. 
+
 
 ## warning: 
-pause dropbox or any other cloud serive while running the script or run it outside of the dropbox folder.  If you get a permissions error, that is usually the cause.  
+pause dropbox or any other cloud serive while running the script or run put the wavetabler folder outside of the dropbox folder.  If you get a permissions error, that is usually the cause.  
 
 ## Test Run
 run a test on the example input files: 
 
-### Windows: 
-type `wvtbl` from you command prompt and choose one of the two sample files.  when it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder.
-
-### Mac/:inux: 
-Enter
-`./wvtbl.sh` 
+type `wvtbl` on windows, (`./wvtbl.sh` on Mac/Linux) from you command prompt and choose one or both of the two sample files.  When it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder
 
 ## Creating your own wavetables
 
-Copy some samples you want to convert to wavetables to the `wavetabler/imput` folder.  They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher sample rates and bit depths will help with the quality of the results. stereo files in the input folder get converted to mono, so make sure you kaeep a copy somewhere. While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice.  
+Copy some short wav files you want to convert to wavetables to the `wavetabler/imput` folder.  
 
-run `wvtbl` on windows or ./wvrbl.sh fromMacOS or Linux and select from the attending file menu. once you select a file or files, accept defaults, and look in your `wavetables` subfolder for your finished wavetables nce the script finishes. 
+- They can be any sample rate or bit depth between `44.1kHz` and `192kHz`, `16 bit` to `32 bit float`.  Higher bit depths will help with the quality of the results. 
+- Stereo files in the input folder get converted to mono, so make sure you keep a copy somewhere. 
+- While you can load any length file, *anything more than ten seconds or so will take an inordinate amount of time*, so your best bet is to pick a 2-10 second slice.  
+
+run `wvtbl` on windows or ./wvrbl.sh on MacOS or Linux and select from the attending file menu. Once you select a file or files, accept defaults, and look in your `wavetables` subfolder for your finished wavetables nce the script finishes. 
 
 ## Loading into Serum (and other wavetable synths)
-I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the import menu choose `import-fixed-frame` pick a wavetable and enter 2048 when prompted.  Your oscillator will load up the wavetable you select from the wavetables subfolder.
+I only have instructions for Serum ATM:  In Serum, click on one of the wavetable edit icons in the oscillator section.  From the import menu choose `import-fixed-frame` pick a wavetable and enter 2048 when prompted.  Your oscillator will load up the wavetable you select from the wavetables subfolder.
 
 ## Advanced 
-- **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  hang tight, will fix it soon, but for now avoid.  
 
 TBD. If you do not accept defaults, you get an advanced series of prompts, which can help if your wavetables are not to your liking.  I have tried to make the choices clear in the script and will later provide some details about how to choose among the options.  
+
+- **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  Hang tight, will fix it soon, but for now avoid.  
+
