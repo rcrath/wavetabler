@@ -37,7 +37,7 @@ def run_segment(file_path):
     segment_limit = 524288  # Limit for max segment size
     min_segment_size = 64  # Set the minimum segment size
 
-    print(f"Segmenting {file_path} . . .")
+    # print(f"Segmenting {file_path} . . .")
 
     # Loop through data to segment based on zero-crossings
     for i in range(1, len(data)):
@@ -45,7 +45,7 @@ def run_segment(file_path):
             # Start of a new segment
             in_segment = True
             prev_start_index = i
-            print(f"Segment started at index {i}")
+            # print(f"Segment started at index {i}")
 
         if in_segment and is_rising_zero_crossing_seg(data, i):
             # End of the current segment
@@ -56,7 +56,7 @@ def run_segment(file_path):
 
                 # Save the segment
                 sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-                print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
+                # print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
             else:
                 print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
                 continue
@@ -72,9 +72,9 @@ def run_segment(file_path):
 
             # Save the final segment
             sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-            print(f"Final segment saved: {segment_name}, length: {len(wave_cycle)}")
+            # print(f"Final segment saved: {segment_name}, length: {len(wave_cycle)}")
         else:
-            print(f"Skipped saving final segment: too short (length={len(wave_cycle)})")
+            # print(f"Skipped saving final segment: too short (length={len(wave_cycle)})")
             pass
     print(f"Segmentation complete. Total segments: {len(segment_sizes)}")
     return segment_sizes

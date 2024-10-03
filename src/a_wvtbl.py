@@ -1,3 +1,4 @@
+
 # a_wvtbl.py
 
 import os
@@ -11,6 +12,7 @@ import j_wvtblr
 import k_clean  
 import aa_common
 import shutil
+import subprocess
 
 
 def process_single_file(file_name):
@@ -73,6 +75,11 @@ def process_single_file(file_name):
 
 
 def main():
+    # Call stereo2mono.py to convert any stereo files to mono in tmp/src
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    stereo2mono_path = os.path.join(script_dir, "stereo2mono.py")  # Correct the path here
+    subprocess.run(["python", stereo2mono_path], check=True)
+    
     # Initialize settings
     aa_common.global_settings = aa_common.initialize_settings()
 
