@@ -87,7 +87,7 @@ def run():
 
     # Prompt user to select one or more files
     while True:
-        selection = input("\nEnter the number(s) of the file(s) to select (comma-separated for multiple or a range like 1-3), or type 'q' to exit: ").strip()
+        selection = input("\nEnter the number(s) of the file(s) to select (e.g. 1, 3, 5-8), \nor type 'q' to exit at any point: ").strip()
         if selection.lower() == 'q':
             print("Quitting script.")
             exit()

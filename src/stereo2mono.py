@@ -35,9 +35,10 @@ def stereo_to_mono_mid_channel(input_file):
 
 if __name__ == "__main__":
     # Prompt the user to proceed with the conversion
-    proceed = input("This will convert and overwrite any stereo files in the input folder to mono. \nIf you choose not to, make sure you do not choose any stereo files in the next step. \nThey will crash the script.  (This is a temporary thing) \nProceed to convert stereo to mono?? Y/n: ").strip().lower()
+    proceed = input("This will convert and overwrite any stereo files in the input folder to mono. \nIf you choose not to, make sure you do not choose any stereo files in the next step. \nThey will crash the script.  (This is a temporary thing) \nProceed to convert stereo to mono? Y/n: ").strip().lower()
 
     if proceed not in ('y', ''):  # If not 'y' or empty (Enter), quit
+        print("Nothing changed, proceeding")
         exit()
 
     # Define the input folder (where the stereo files are located)

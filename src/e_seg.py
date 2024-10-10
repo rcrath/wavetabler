@@ -58,7 +58,7 @@ def run_segment(file_path):
                 sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
                 # print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
             else:
-                print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
+                # print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
                 continue
             # Prepare for the next segment
             in_segment = False
