@@ -71,12 +71,12 @@ def pick_on_click(event, data, sr, fig, ax, total_samples, fixed_length, wavecyc
     fig.canvas.draw()
 
 
-def pick_on_proceed(event, data, sr, base, base_folder, suffix):
+def pick_on_proceed(event, data, sr, base, concat_folder, suffix_two):
     global selected_segment
 
     if selected_segment is not None:
         # Save the selected segment
-        save_pick(selected_segment, sr, base, wavetables_folder, suffix)
+        save_pick(selected_segment, sr, base, wavetables_folder, suffix_two)
         print(f"Proceeding with the selected segment.")
         plt.close('all')  # Close the plot after saving
     else:
@@ -88,7 +88,7 @@ def pick_on_cancel(event):
     print("Selection canceled. No changes made.")
     plt.close('all')  # Close the plot
 
-def save_pick(segment_data, sr, base, wavetables_folder, suffix):
+def save_pick(segment_data, sr, base, wavetables_folder, _two):
     """
     Save the selected segment to the wavetables directory located at the top level.
     
@@ -101,8 +101,8 @@ def save_pick(segment_data, sr, base, wavetables_folder, suffix):
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs(wavetables_folder, exist_ok=True)  # Ensure wavetables folder exists
-    
-    output_file = os.path.join(wavetables_folder, f"{base}_{timestamp}_{suffix}.wav")
+    suffix_two = "pick"
+    output_file = os.path.join(wavetables_folder, f"{base}_{timestamp}_{suffix_two}.wav")
     
     try:
         sf.write(output_file, segment_data, sr, subtype='FLOAT')
@@ -113,7 +113,7 @@ def save_pick(segment_data, sr, base, wavetables_folder, suffix):
         return False
 
 
-def plot_concat(concat_file_path, fixed_length, sr, base, base_folder, suffix):
+def plot_concat(concat_file_path, fixed_length, sr, base, concat_folder, suffix_one):
     global selected_segment  # Global to store the selected segment
     
     data, sr = sf.read(concat_file_path)
@@ -136,7 +136,7 @@ def plot_concat(concat_file_path, fixed_length, sr, base, base_folder, suffix):
     btn_cancel = Button(ax_cancel, 'Cancel')
 
     # Button actions
-    btn_proceed.on_clicked(lambda event: pick_on_proceed(event, data, sr, base, base_folder, suffix))
+    btn_proceed.on_clicked(lambda event: pick_on_proceed(event, data, sr, base, concat_folder, suffix_one))
     btn_cancel.on_clicked(pick_on_cancel)
 
     # Connect the click event for segment selection
@@ -287,7 +287,8 @@ def create_wavetable_from_concat(concat_file_path, output_wavetable_path):
     # Save the padded data as the final wavetable
     sf.write(output_wavetable_path, padded_data, sr, subtype='FLOAT')
 
-def split_and_save_wav_with_correct_padding(data, output_folder, base_name, timestamp, wavetable_type):
+def split_and_save_wav_with_correct_padding(data, output_folder, base_name, suffix_one, timestamp, wavetable_type):
+
     sr = 192000
     segment_length = len(data)
     num_frames_per_file = 2048 * 256
@@ -300,7 +301,7 @@ def split_and_save_wav_with_correct_padding(data, output_folder, base_name, time
         start_sample = i * num_frames_per_file
         end_sample = start_sample + num_frames_per_file
         segment = data[start_sample:end_sample]
-        output_file_name = f"{base_name}_{timestamp}_{wavetable_type}_{counter}.wav"
+        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{wavetable_type}_{counter}.wav"
         output_file_path = os.path.join(output_folder, output_file_name)
         sf.write(output_file_path, segment, sr, subtype='FLOAT')
 
@@ -309,10 +310,9 @@ def split_and_save_wav_with_correct_padding(data, output_folder, base_name, time
         padding_needed = num_frames_per_file - remainder
         last_segment = np.concatenate([data[-remainder:], np.zeros(padding_needed)])
         counter = f"{num_full_files + 1:02d}"
-        output_file_name = f"{base_name}_{timestamp}_{wavetable_type}_{counter}.wav"
+        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{wavetable_type}_{counter}.wav"
         output_file_path = os.path.join(output_folder, output_file_name)
         sf.write(output_file_path, last_segment, sr, subtype='FLOAT')
-
 def check_wavetable(file_path):
     """Checks if the wavetable has the correct total length and every 2048th sample is near zero and rising."""
     data, sr = sf.read(file_path)
@@ -338,6 +338,14 @@ def check_wavetable(file_path):
     return True
 
 def run(atk_deleted, dev_deleted, normal_deleted):
+    # Use these variables inside the function
+    suffix_one = ""
+    if atk_deleted:
+        suffix_one += "_-atk"
+    if dev_deleted:
+        suffix_one += "_-dev"
+    if normal_deleted:
+        suffix_one += "_-norm"
     # Localize imports inside the run function to avoid circular import
     from aa_common import get_base, get_tmp_folder, input_with_defaults, plot_wav_file_interactive, selected_segment
 
@@ -353,14 +361,6 @@ def run(atk_deleted, dev_deleted, normal_deleted):
     output_path_frames = os.path.join(concat_folder, output_file_frames)
 
     output_path_frames, sr_frames = concatenate_files(frames_folder, output_path_frames)
-
-    suffix = ""
-    if atk_deleted:
-        suffix += "_-atk"
-    if dev_deleted:
-        suffix += "_-dev"
-    if normal_deleted:
-        suffix += "_-norm"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -389,25 +389,34 @@ def run(atk_deleted, dev_deleted, normal_deleted):
                 continue
 
     if 1 in selected_options:
-        fitted_wavetable_path = os.path.join(wavetables_folder, f"{base}{suffix}_{timestamp}_fit.wav")
+        fitted_wavetable_path = os.path.join(wavetables_folder, f"{base}_{timestamp}{suffix_one}_fit.wav")
         create_wavetable_from_concat(output_path_frames, fitted_wavetable_path)
 
     if 2 in selected_options:
         timestamp_state = datetime.now().strftime("%Y%m%d_%H%M%S")
         data_frames, sr_frames = sf.read(output_path_frames, dtype='float32')
         data_frames_padded = apply_padding_if_needed(data_frames, fixed_length, -60)
-        split_and_save_wav_with_correct_padding(data_frames_padded, wavetables_folder, f"{base}{suffix}", timestamp_state, "chunk")
-
+        split_and_save_wav_with_correct_padding(data_frames_padded, wavetables_folder, f"{base}", suffix_one, timestamp_state, "chunk")
+ 
     if 3 in selected_options:
-        # Call the plot_concat function for selection
-        plot_concat(output_path_frames, fixed_length=fixed_length, sr=sr_frames, base=base, base_folder=tmp_folder, suffix=suffix)
+        # Call plot_concat to let the user select a segment
+        plot_concat(output_path_frames, fixed_length=fixed_length, sr=sr_frames, base=base, concat_folder=concat_folder, suffix_one=suffix_one)
+
+        # Create the picked_wavetable_path for saving the selected segment
+        picked_wavetable_path = os.path.join(wavetables_folder, f"{base}_{timestamp}{suffix_one}_pick.wav")
+
 
         # After the plot is closed, check if a segment was selected and proceed
         if selected_segment is not None:
-            save_pick(selected_segment, sr_frames, f"{base}{suffix}_pick", wavetables_folder, "pick")
+            save_pick(selected_segment, sr_frames, f"{base}{suffix_one}_pick_{timestamp}", wavetables_folder, "pick")
+            print(f"Saved selection to: {picked_wavetable_path}")
             print("Proceeding with the selected segment.")
         else:
-            print("No segment selected. Proceeding without saving.")
+            # print("No segment selected. Proceeding without saving.")
+            pass
+
+        # Only reset `selected_segment` after all the checks and prints are done
+        selected_segment = None  # Reset after processing all logic
 
 
     if not selected_options & {1, 2, 3}:
