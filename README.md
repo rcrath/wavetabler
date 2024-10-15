@@ -58,7 +58,7 @@ wavetabler
 
 ## setup
 
-You need to set the project up first, Make sure you have python installed. If the script fails, find the 9python 3.11.9](https://www.python.org/downloads/release/python-3119/) version from the python site and install that, even if you already have another version of python installed.  when installing, no need to set it as your main python, just install it as usual and let it go. the setpy commands will take care of using this version.
+You need to set the project up first, Make sure you have python installed. If the script fails, find the [python 3.11.9](https://www.python.org/downloads/release/python-3119/) version from the python site and install that, even if you already have another version of python installed.  when installing, no need to set it as your main python, just install it as usual and let it go. the setpy commands will take care of using this version.
 
 ### Windows 
 from your command prompt in the wavetabler folder, run:
