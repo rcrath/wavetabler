@@ -12,7 +12,7 @@ import j_wvtblr
 import k_clean  
 import aa_common
 import shutil
-import subprocess
+import b_stereo2mono
 
 
 def process_single_file(file_name):
@@ -75,16 +75,17 @@ def process_single_file(file_name):
 
 
 def main():
-    # Call stereo2mono.py to convert any stereo files to mono in tmp/src
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    stereo2mono_path = os.path.join(script_dir, "stereo2mono.py")  # Correct the path here
-    subprocess.run(["python", stereo2mono_path], check=True)
-    
     # Initialize settings
     aa_common.global_settings = aa_common.initialize_settings()
 
+    # Run the stereo-to-mono conversion, and quit if the user opts to cancel
+    if not b_stereo2mono.run():
+        print("Exiting as per user request.")
+        return  # Exit the script if the user cancels
+
     # Run the menu to select the source file(s)
     selected_files = b_menu.run()
+
 
     # If multiple files are selected, run in batch mode
     for file_name in selected_files:

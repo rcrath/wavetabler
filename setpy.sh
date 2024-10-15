@@ -11,3 +11,4 @@ pip install -r requirements.txt
 
 # Optional: You can uncomment these lines if you prefer manual installation of packages
 # pip install numpy scipy librosa resampy soundfile pydub matplotlib pandas tabulate
+alias wvtbl=./wvtbl.sh
