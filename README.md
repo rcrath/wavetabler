@@ -66,7 +66,7 @@ from your command prompt in the wavetabler folder, run:
 You only need to do this once.  
 
 ### MacOS (untested) or Linux 
-from a command prompt in the wavetabler folder run `chmod +x setpy.sh)` and then `./setpy.sh`
+from a command prompt in the wavetabler folder run `chmod +x setpy.sh` and then `./setpy.sh`
 You only need to do this once.  
 
 ## warning: 
