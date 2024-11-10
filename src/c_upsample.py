@@ -152,14 +152,13 @@ def run():
 
     # Set a flag for the chosen method
     autocorrelation_flag = method == '2'
-
+    '''
     # Perform the default zero crossing method (no changes if defaults are chosen)
     if not autocorrelation_flag:
         # Existing zero-crossing method implementation...
         pass
     else:
-        # Placeholder for the new autocorrelation method
-        print("Autocorrelation method selected (functionality not implemented yet).")
-
+        pass
+    '''
     # Assuming processed_files is defined elsewhere in the existing code
     return [processed_files], autocorrelation_flag  # Return the flag along with the file path

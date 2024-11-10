@@ -126,8 +126,7 @@ def run():
         aa_common.ensure_tmp_folder()
 
     # Create the 'cpy' folder inside tmp and copy the chosen source file(s) there
-    cpy_folder = os.path.join(aa_common.tmp_folder, "cpy")
-    os.makedirs(cpy_folder, exist_ok=True)
+    cpy_folder = aa_common.get_cpy_folder()
 
     for file_name in selected_files:
         source_file_path = os.path.join(aa_common.source_folder, file_name)

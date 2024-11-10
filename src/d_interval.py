@@ -1,83 +1,67 @@
 # d_interval.py
 
 import numpy as np
-from scipy.signal import find_peaks
-from scipy.stats import mode
-import matplotlib.pyplot as plt
 import soundfile as sf
-import argparse
+import os
+import k_clean  # Import k_clean to handle the cleanup
+import aa_common  # Import aa_common for common functions and paths
 
-def autocorr(x):
-    no_dc_x = (x - np.mean(x))  # Remove DC offset
-    acorr = np.correlate(no_dc_x, no_dc_x, mode='full')  # Full autocorrelation
-    norm_acorr = (acorr / np.max(abs(acorr)))[-len(x):]  # Normalize and use second half
-    return norm_acorr
+def autocorr(data):
+    """Calculate the autocorrelation of the given data."""
+    n = len(data)
+    result = np.correlate(data, data, mode='full')
+    return result[n-1:]
 
-def extract_best_interval(norm_acorr):
-    # Optimized peak detection using additional parameters
-    peaks, _ = find_peaks(norm_acorr, prominence=0.5, distance=10, height=0.1)  # Adjusted parameters
-    if len(peaks) < 2:
-        print("Insufficient peaks found for interval analysis.")
-        return None, 0
+def find_relevant_peaks(autocorr):
+    """Find relevant peaks in the autocorrelation data."""
+    peaks = np.where((autocorr[1:] > 0) & (autocorr[:-1] <= 0))[0]
+    return peaks
 
-    # Calculate intervals between consecutive peaks
-    intervals = np.diff(peaks)
-    
-    # Find the mode of the intervals (most common interval)
-    mode_result = mode(intervals)
-    best_interval = mode_result.mode[0] if isinstance(mode_result.mode, np.ndarray) else mode_result.mode
-    count = mode_result.count[0] if isinstance(mode_result.count, np.ndarray) else mode_result.count
-    confidence = count / len(intervals) if len(intervals) > 0 else 0
+def segment_and_save(data, sample_rate, peaks, seg_folder, base):
+    """Segment the data at the given peaks and save to the seg folder with proper naming."""
+    segment_count = 0
+    segments = []
 
-    if best_interval is not None:
-        print(f"Best interval: {best_interval} samples (mode of intervals), Confidence: {confidence:.2f}")
-    else:
-        print("Could not determine a best interval.")
+    # Shift phase by -90 degrees (negative quarter of a period)
+    phase_shift = int(sample_rate * 0.5)
+    # phase_shift = 0
 
-    return best_interval, confidence
+    # Create segments based on phase-shifted peaks
+    for i in range(1, len(peaks)):
+        start = peaks[i-1] + phase_shift
+        end = peaks[i] + phase_shift
+        if start < len(data) and end <= len(data):
+            segments.append(data[start:end])
 
-def calculate_pitch(best_interval, sample_rate):
-    if best_interval is None or best_interval <= 0:
-        return None
-    # Calculate frequency in Hz
-    frequency = sample_rate / best_interval
-    print(f"Frequency: {frequency:.2f} Hz")
-    return frequency
+    # Silence the first and last segments
+    if segments:
+        segments[0] = np.zeros_like(segments[0])
+        segments[-1] = np.zeros_like(segments[-1])
 
-# Command-line argument parsing
-parser = argparse.ArgumentParser(description="Input audio file path")
-parser.add_argument('input_audio_path', help="Path to the input audio file")
-args = parser.parse_args()
+    # Save each segment with the naming convention {base}_seg_nnnn.wav
+    if not os.path.exists(seg_folder):
+        os.makedirs(seg_folder)  # Create the seg folder if it doesn't exist
 
-try:
-    # Load the audio file and get the sample rate
-    x, sample_rate = sf.read(args.input_audio_path)
-    
-    # If the audio has more than one channel, take the first channel
-    if x.ndim > 1:
-        x = x[:, 0]
-except Exception as e:
-    print(f"Error reading audio file: {e}")
-    exit()
+    for idx, segment in enumerate(segments):
+        segment_path = os.path.join(seg_folder, f"{base}_seg_{segment_count:04d}.wav")
+        sf.write(segment_path, segment, sample_rate)
+        # print(f"Saved segment {segment_count} to {segment_path}")
+        segment_count += 1
 
-acf = autocorr(x)
-best_interval, confidence = extract_best_interval(acf)
 
-# Calculate the pitch frequency using the sample rate and best interval
-frequency = calculate_pitch(best_interval, sample_rate)
+def run(processed_files):
+    """Main function to process the given files and segment them using autocorrelation."""
+    for file_path in processed_files:
+        data, sample_rate = sf.read(file_path)
+        autocorr_result = autocorr(data)
+        peaks = find_relevant_peaks(autocorr_result)
 
-# Plotting the autocorrelation and the peaks for visualization
-plt.figure(figsize=(10, 5))
-plt.plot(acf, label='Autocorrelation')
-if best_interval:
-    peaks, _ = find_peaks(acf, prominence=0.5, distance=10, height=0.1)  # Using the same parameters for visualization
-    plt.scatter(peaks, acf[peaks], color='red', label='Peaks', zorder=5)
-plt.title("Autocorrelation with Peaks")
-plt.xlabel("Sample Index")
-plt.ylabel("Normalized Amplitude")
-plt.legend()
-plt.show()
+        print(f"File: {file_path}")
+        print(f"Found {len(peaks)} relevant peaks for segmentation.")
 
-# Output the sample rate, best interval, confidence, and frequency
-print(f"Sample rate: {sample_rate} Hz")
-best_interval, confidence, sample_rate, frequency
+        base = os.path.splitext(os.path.basename(file_path))[0]  # Extract base name
+        seg_folder = os.path.join(aa_common.tmp_folder, "seg")
+        segment_and_save(data, sample_rate, peaks, seg_folder, base)
+
+    # Proceed to k_clean after processing
+    # k_clean.run()
