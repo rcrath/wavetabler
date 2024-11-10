@@ -18,6 +18,7 @@ _start_file_name = ""
 _start_file = ""
 _base = ""
 tmp_folder = ""
+cpy_folder = os.path.join(tmp_folder, "cpy")
 global_settings = {}  # Global settings dictionary
 wavecycle_samples_target_192 = 0  # Global variable for target samples per wavecycle
 selected_segment = None
@@ -57,6 +58,7 @@ def initialize_settings():
     global global_settings
     # Initial settings with default values
     global_settings = {
+        'zero_crossing_method': 1,  # Add default method for zero crossing
         'percent_tolerance': 5,  # Default tolerance percent
         'discard_atk_choice': 'N',  # Default choice for discarding attack segments
         'discard_dev_choice': 'N',  # Default choice for discarding deviant segments
@@ -70,15 +72,26 @@ def update_settings(settings):
     global global_settings
     global_settings.update(settings)
     return global_settings
-
+'''
 def get_src_folder():
-    """Return the path to the 'src' folder."""
-    return src_folder
+    """Return the path to the 'input' folder."""
+    return input_folder
 
 
-def get_src_file():
-    """Return the full path to the source file inside 'src' folder."""
+def get_input_file():
+    """Return the full path to the source file inside 'input' folder."""
     return _start_file
+'''
+def get_cpy_folder():
+    tmp_folder = get_tmp_folder()
+    return cpy_folder
+
+def get_cpy_file():
+    # Create a variable to store the path of the copied file
+    cpy_file_path = os.path.join(cpy_folder, os.path.basename(_start_file))
+    return cpy_file_path
+    print(f"cpy_file_path: {cpy_file_path}")
+
 
 def input_with_quit(prompt=""):
     user_input = input(prompt).strip().lower()
@@ -264,9 +277,9 @@ def get_tmp_folder():
 def ensure_tmp_folder():
     """
     Ensures that both the base and tmp folders exist. If not, they are created.
-    Additionally, ensures the 'src' folder inside 'tmp' exists.
+    Additionally, ensures the 'cpy' folder inside 'tmp' exists.
     """
-    global src_folder
+    # global cpy_folder
 
     if not os.path.exists(_base):
         os.makedirs(_base)
@@ -274,9 +287,9 @@ def ensure_tmp_folder():
     if not os.path.exists(tmp_folder):
         os.makedirs(tmp_folder)
 
-    # Ensure the 'src' folder exists inside the 'tmp' folder
-    src_folder = os.path.join(tmp_folder, "src")
-    os.makedirs(src_folder, exist_ok=True)
+    # Ensure the 'cpy' folder exists inside the 'tmp' folder
+    # cpy_folder = os.path.join(tmp_folder, "cpy")
+    # os.makedirs(cpy_folder, exist_ok=True)
 
 '''
 def is_rising_from_zero(data):

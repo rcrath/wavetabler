@@ -125,13 +125,13 @@ def run():
         # If the tmp folder does not exist, create it
         aa_common.ensure_tmp_folder()
 
-    # Create the 'src' folder inside tmp and copy the chosen source file(s) there
-    src_folder = os.path.join(aa_common.tmp_folder, "src")
-    os.makedirs(src_folder, exist_ok=True)
+    # Create the 'cpy' folder inside tmp and copy the chosen source file(s) there
+    cpy_folder = os.path.join(aa_common.tmp_folder, "cpy")
+    os.makedirs(cpy_folder, exist_ok=True)
 
     for file_name in selected_files:
         source_file_path = os.path.join(aa_common.source_folder, file_name)
-        shutil.copy2(source_file_path, src_folder)
+        shutil.copy2(source_file_path, cpy_folder)
 
     # Return the selected files list
     return selected_files

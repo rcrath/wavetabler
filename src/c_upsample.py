@@ -122,14 +122,44 @@ def run():
     """
     The main function of c_upsample, now simplified to check for large files and handle selection if needed.
     """
-    # Get the src file path from aa_common
-    src_file = aa_common.get_src_file()
+    base = aa_common.get_base()
+    print(f"base: {base}")
+
+    # Construct the full tmp_folder path
+    tmp_folder = os.path.join(base, "tmp")
+    print(f"tmp: {tmp_folder}")
+
+    # Construct the full path for cpy_file
+    cpy_folder = os.path.join(tmp_folder, "cpy")
+    cpy_file = os.path.join(cpy_folder, f"{base}.wav")
+    print(f"cpy_file: {cpy_file}")
 
     # Check if the file exceeds thresh_size size and allow the user to select a portion if needed
-    processed_file_path = check_and_prompt_for_large_files(src_file)
+    processed_files = check_and_prompt_for_large_files(cpy_file)
+    print(f"processed_files: {processed_files}")
 
     # Call the function to truncate the waveform at the start and end, ensuring it's properly prepared
-    check_and_truncate_waveform(processed_file_path)
+    check_and_truncate_waveform(processed_files)
 
-    # Return the processed file path so the main script can continue handling it
-    return [processed_file_path]  # Return as a list to match the old format
+    # Prompt for method choice using input_with_defaults
+    method = aa_common.input_with_defaults(
+        "\nChoose a method of segmenting the file \n"
+        "\n1. Zero Crossing (default): good for percussive sounds \n"
+        "   and sounds with multiple or unclear pitches.\n"
+        "\n2. Autocorrelation: for clearly single pitched sounds \n\n",
+        '1'
+    )
+
+    # Set a flag for the chosen method
+    autocorrelation_flag = method == '2'
+
+    # Perform the default zero crossing method (no changes if defaults are chosen)
+    if not autocorrelation_flag:
+        # Existing zero-crossing method implementation...
+        pass
+    else:
+        # Placeholder for the new autocorrelation method
+        print("Autocorrelation method selected (functionality not implemented yet).")
+
+    # Assuming processed_files is defined elsewhere in the existing code
+    return [processed_files], autocorrelation_flag  # Return the flag along with the file path

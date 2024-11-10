@@ -126,7 +126,9 @@ def run(processed_files):
 
     # Use the files from the src folder inside tmp
     for file_path in processed_files:
-        full_path = os.path.normpath(os.path.join(tmp_folder, "src", os.path.basename(file_path)))
+        print(f"Processing file: {os.path.basename(file_path)}")
+        full_path = os.path.normpath(os.path.join(tmp_folder, "cpy", os.path.basename(file_path)))
+        print(f"full_path: {full_path}")
         new_segment_sizes = []
 
         if os.path.exists(full_path):

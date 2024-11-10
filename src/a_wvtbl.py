@@ -5,6 +5,7 @@ import os
 import b_menu
 import c_upsample
 import e_seg
+import e_seg2
 import f_sort
 import g_choose
 import h_interpolate
@@ -40,18 +41,21 @@ def process_single_file(file_name):
     if not os.path.exists(concat_folder):
         os.makedirs(concat_folder)  # Create the concat folder if it doesn't exist
     
-    # Ensure that tmp/src folder is created
-    src_folder = os.path.join(aa_common.tmp_folder, "src")
-    os.makedirs(src_folder, exist_ok=True)
+    # Ensure that tmp/cpy folder is created
+    cpy_folder = os.path.join(aa_common.tmp_folder, "cpy")
+    os.makedirs(cpy_folder, exist_ok=True)
 
-    # Copy the current source file into the src folder
-    shutil.copy2(aa_common._start_file, src_folder)
+    # Copy the current source file into the cpy folder
+    shutil.copy2(aa_common._start_file, cpy_folder)
 
     # Run the upsampling
-    processed_files = c_upsample.run()
+    processed_files, autocorrelation_flag = c_upsample.run()
 
-    # Run segmentation for each processed file and collect wavecycle samples
-    e_seg.run(processed_files)
+    # Use the appropriate module based on the flag
+    if autocorrelation_flag:
+        e_seg2.run(processed_files)
+    else:
+        e_seg.run(processed_files)
 
     # Run sorting
     total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, lower_bound_samples, upper_bound_samples = f_sort.run(
