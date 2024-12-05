@@ -96,3 +96,8 @@ I only have instructions for Serum ATM:  in serum click on one of the wavetable 
 - **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  hang tight, will fix it soon, but for now avoid.  
 
 TBD. If you do not accept defaults, you get an advanced series of prompts, which can help if your wavetables are not to your liking.  I have tried to make the choices clear in the script and will later provide some details about how to choose among the options.  
+
+Related Projects: 
+- [okwt](https://github.com/drzhnn/okwt) This tool allows you to convert any file into a wavetable, and perform useful operations on its frames.
+- [osc_gen]{https://github.com/harveyormston/osc_gen}: osc_gen is a Python library for creating and managing oscillator wavetables. can import and slice wavetables
+- 
