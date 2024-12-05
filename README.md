@@ -8,8 +8,7 @@
 
  My packaging skills are not there yet, so for now, download or clone the repository and copy the top folder (wavetabler) to where you wnat to run it. if you cloned it, you definitely want to work form a dedicated separate folder outside your git folder because we will create and delete tons of files.  CD into  wavetabler folder.  There you will find the following tree:  
 
- from within wavetabler, open a command prompt, 
-
+ 
  ```
 wavetabler
 │   .gitattributes
@@ -21,7 +20,9 @@ wavetabler
 │   setpy.sh # Linux/MacOS: : run first time only \*see below
 │   setup.py
 │   wvtbl.cmd # this is your windows command. Type `wvtbl` to run
-│   wvtbl.sh # this is your linux/<acOS command, run as `./wvtbl.sh` \*see below
+│   wvtbl.sh # this is your linux/MacOS command, run as `./wvtbl.sh` \*see below
+|   wvtbl_singles.cmd # Windows command for concatenating singles
+│   wvtbl_singles.sh # linux/MacOS command for concatenating singles
 │
 ├───build # temporarily included, might not be necessary.
 │   └───bdist.win-amd64
@@ -34,7 +35,7 @@ wavetabler
 │       flange220.wav
 │       sinetable.wav
 │
-├───src # the actual python code
+├───src # the actual python code --this needs an update
 │   │   aa_common.py
 │   │   a_wvtbl.py
 │   │   b_menu.py
@@ -66,11 +67,11 @@ from your command prompt in the wavetabler folder, run:
 You only need to do this once.  
 
 ### MacOS (untested) or Linux 
-from a command prompt in the wavetabler folder run `chmod +x setpy.sh` and then `./setpy.sh`
+from a command prompt in the wavetabler folder run `chmod +x setpy.sh)` and then `./setpy.sh`
 You only need to do this once.  
 
 ## warning: 
-pause dropbox or any other cloud serive while running the script or run it outside of the dropbox folder.  If you get a permissions error, that is usually the cause.  
+pause dropbox or any other cloud service while running the script or run it outside of the dropbox folder.  If you get a permissions error, that is usually the cause.  
 
 ## Test Run
 run a test on the example input files: 
@@ -78,7 +79,7 @@ run a test on the example input files:
 ### Windows: 
 type `wvtbl` from you command prompt and choose one of the two sample files.  when it asks you to accept defaults, just hit enter, and after a little processing, you should have a shiny new 2048 sample per wwavecycle, 256 frame wavetable in the wavetables folder.
 
-### Mac/:inux: 
+### Mac/:Linux: 
 you have to set the permissions for it to execute the first time:
  `chmod +x wvtbl.sh)` and then `./wvtbl.sh` runs it
 ``
@@ -89,6 +90,11 @@ Copy some samples you want to convert to wavetables to the `wavetabler/imput` fo
 
 run `wvtbl` and select from the attending file menu. accept defaults, and look in your `wavetables` folder for your finished wavetables. 
 
+## NEW concatenate single wavecycle files to create wavetables
+THis script takes a folder full of single wavecycles and interpolates, concatenates, and creates a wavetable from them. First step is to gather a folder of single wavecycles you want to make a wavetable from.  
+Then run `wvtbl_singles` on windows and select the folder. On MacOS and Linux, you have to set permissions before first run only, as you did above: 
+ `chmod +x wvtbl_singles.sh)`, and then `./wvtbl_singles.sh` runs it.
+
 ## Loading into Serum (and other wavetable synths)
 I only have instructions for Serum ATM:  in serum click on one of the wavetable edit icons in the oscillator section.  from the import menu choose `import-fixed-frame` and enter 2048.  Your oscillator will load up the wavetable you select from the output folder.
 
@@ -96,8 +102,3 @@ I only have instructions for Serum ATM:  in serum click on one of the wavetable 
 - **known isssue**, in the last section, you get a choice of fitting the wavetable, chopping it into arbitrary chunks, or picking a chunk. There is an issue with the "pick" function where the selection does not start at a zero crossing, throwing the whole selection off.  hang tight, will fix it soon, but for now avoid.  
 
 TBD. If you do not accept defaults, you get an advanced series of prompts, which can help if your wavetables are not to your liking.  I have tried to make the choices clear in the script and will later provide some details about how to choose among the options.  
-
-Related Projects: 
-- [okwt](https://github.com/drzhnn/okwt) This tool allows you to convert any file into a wavetable, and perform useful operations on its frames.
-- [osc_gen]{https://github.com/harveyormston/osc_gen}: osc_gen is a Python library for creating and managing oscillator wavetables. can import and slice wavetables
-- 
