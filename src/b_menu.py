@@ -23,14 +23,21 @@ def list_wav_files_with_details(source_folder):
             # Calculate the ratio of total samples to 524,288
             ratio = round(samples / 524288, 2)
 
-            details = {
-                'file_name': file,
-                'ratio': ratio,
-                'sample_rate': sample_rate,
-                'channels': channels,
-                'bit_depth': f.subtype
-            }
-            file_details.append(details)
+        # Specify the float type explicitly
+        if 'FLOAT' in f.subtype.upper():
+            float_type = 'float32' if 'FLOAT32' in f.subtype.upper() else 'float64'
+        else:
+            float_type = f.subtype
+
+        details = {
+            'file_name': file,
+            'ratio': ratio,
+            'sample_rate': sample_rate,
+            'channels': channels,
+            'bit_depth': float_type  # Updated to specify the float type
+        }
+        file_details.append(details)
+
 
     return file_details
 
@@ -105,6 +112,29 @@ def run():
             
             break
 
+    # Create the 'cpy' folder inside tmp and copy the chosen source file(s) there
+    base = aa_common.get_base()
+    print(f"base: {base}")
+    tmp_folder = aa_common.get_tmp_folder()
+    print(f"tmp_folder: {tmp_folder}")
+    cpy_folder = aa_common.get_cpy_folder()
+    print(f"cpy_folder: {cpy_folder}")
+    cpy = f"{base}.wav"
+    print(f"cpy: {cpy}")
+    cpy_path = os.path.join(tmp_folder,cpy_folder, cpy)
+    print(f"cpy_path: {cpy_path}")
+
+    # Prompt for method choice using input_with_defaults
+    method = aa_common.input_with_defaults(
+        f"\nChoose a method of segmenting the file {cpy}\n"
+        "\n     1. Zero Crossing (default): good for percussive sounds \n"
+        "        and sounds with multiple or unclear pitches.\n"
+        "\n     2. Autocorrelation: for clearly single pitched sounds \n\nChoose or press enter for default (patience, it may take a while): ",
+        '1'
+    )
+
+    # Set a flag for the chosen method
+    aa_common.set_autocorrelation_flag(method == '2')
     # prompt to accept ALL defaults
     accept_defaults = aa_common.input_with_defaults("\nAccept all defaults (try this first!) Y/n: ", default="y")
 
@@ -124,9 +154,6 @@ def run():
     else:
         # If the tmp folder does not exist, create it
         aa_common.ensure_tmp_folder()
-
-    # Create the 'cpy' folder inside tmp and copy the chosen source file(s) there
-    cpy_folder = aa_common.get_cpy_folder()
 
     for file_name in selected_files:
         source_file_path = os.path.join(aa_common.source_folder, file_name)

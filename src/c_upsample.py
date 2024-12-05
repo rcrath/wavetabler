@@ -1,11 +1,14 @@
 
-
 # c_upsample.py
 
 import os
 import aa_common
-import soundfile as sf
+import librosa
+import resampy
 import numpy as np
+import soundfile as sf
+from pydub import AudioSegment
+
 
 # New global variable for threshold factor and size
 thresh_factor = 4  # Multiplier for the threshold size (can be easily changed)
@@ -16,9 +19,70 @@ def load_audio(file_path):
     """
     Function to load the audio file.
     """
-    data, sample_rate = sf.read(file_path)
+    data, sample_rate = sf.read(file_path, dtype='float32')
+
     return data, sample_rate
 
+# upsample function
+def interpolate_best(waveform, original_sr, target_sr):
+    """
+    Resample a waveform to a new sample rate using high-quality resampling.
+    Handles both mono and stereo input.
+
+    Parameters:
+    - waveform: np.ndarray, input waveform (mono or stereo).
+    - original_sr: int, original sample rate.
+    - target_sr: int, target sample rate.
+
+    Returns:
+    - np.ndarray, resampled waveform (mono or stereo).
+    """
+    # print("Entering interpolate_best")
+    # print(f"Audio data type: {type(waveform)}, Shape: {waveform.shape}")
+
+    if waveform.ndim == 2:  # Stereo
+        print("Stereo detected, processing each channel separately")
+        # Extract and resample each channel
+        left_channel = resampy.resample(waveform[:, 0], original_sr, target_sr)
+        right_channel = resampy.resample(waveform[:, 1], original_sr, target_sr)
+
+        # Combine channels into stereo
+        resampled_waveform = np.stack((left_channel, right_channel), axis=-1)
+    elif waveform.ndim == 1:  # Mono
+        print("Mono detected, processing single channel")
+        # Resample mono waveform directly
+        resampled_waveform = resampy.resample(waveform, original_sr, target_sr)
+    else:
+        raise ValueError(f"Unexpected waveform shape: {waveform.shape}")
+
+    # print("After interpolation")
+    # print(f"Resampled audio type: {type(resampled_waveform)}, Shape: {resampled_waveform.shape}")
+    return resampled_waveform
+
+
+def save_audio(file_path, data, sample_rate):
+    """
+    Save the audio data to a specified file path with the given sample rate.
+    
+    Parameters:
+    - file_path: str, the path to save the audio file.
+    - data: np.ndarray, the audio data to save.
+    - sample_rate: int, the sample rate of the audio data.
+    """
+    sf.write(file_path, data, sample_rate, subtype='FLOAT')
+
+
+
+
+def apply_fades(data, fade_samples):
+    if len(data) > 2 * fade_samples:
+        fade_in_window = np.linspace(0, 1, fade_samples, dtype=np.float32)
+        fade_out_window = np.linspace(1, 0, fade_samples, dtype=np.float32)
+        data[:fade_samples] *= fade_in_window
+        data[-fade_samples:] *= fade_out_window
+    else:
+        print("Audio data too short for the specified fade length.")
+    return data
 
 def test_rising_conditions(data):
     """
@@ -119,46 +183,48 @@ def check_and_prompt_for_large_files(file_path):
     return file_path  # Return the file path that will be processed
 
 def run():
-    """
-    The main function of c_upsample, now simplified to check for large files and handle selection if needed.
-    """
+    
     base = aa_common.get_base()
-    print(f"base: {base}")
-
+    # print(f"base: {base}")
+    # start_file = aa_common.get_start_file()
+    
     # Construct the full tmp_folder path
     tmp_folder = os.path.join(base, "tmp")
-    print(f"tmp: {tmp_folder}")
+    # print(f"tmp: {tmp_folder}")
 
     # Construct the full path for cpy_file
     cpy_folder = os.path.join(tmp_folder, "cpy")
     cpy_file = os.path.join(cpy_folder, f"{base}.wav")
-    print(f"cpy_file: {cpy_file}")
-
+    # print(sf.info(cpy_file))
+    # print("this is the input")
+    # breakpoint()
+    cpy_file_data, sample_rate = load_audio(cpy_file)
+    # print(sf.info(cpy_file))
+    # print("audio loaded on line 182")
+    # breakpoint()
     # Check if the file exceeds thresh_size size and allow the user to select a portion if needed
     processed_files = check_and_prompt_for_large_files(cpy_file)
-    print(f"processed_files: {processed_files}")
-
+    # print(f"processed_files: {processed_files}")
+    # print(sf.info(cpy_file))
+    # print("audio checked for large files on line 187")
+    # breakpoint()
     # Call the function to truncate the waveform at the start and end, ensuring it's properly prepared
     check_and_truncate_waveform(processed_files)
 
-    # Prompt for method choice using input_with_defaults
-    method = aa_common.input_with_defaults(
-        "\nChoose a method of segmenting the file \n"
-        "\n1. Zero Crossing (default): good for percussive sounds \n"
-        "   and sounds with multiple or unclear pitches.\n"
-        "\n2. Autocorrelation: for clearly single pitched sounds \n\n",
-        '1'
-    )
+    # upsample the file
+    # Load the waveform and sample rate from the input file
+    cpy_file_data, sample_rate = load_audio(cpy_file)
 
-    # Set a flag for the chosen method
-    autocorrelation_flag = method == '2'
-    '''
-    # Perform the default zero crossing method (no changes if defaults are chosen)
-    if not autocorrelation_flag:
-        # Existing zero-crossing method implementation...
-        pass
-    else:
-        pass
-    '''
-    # Assuming processed_files is defined elsewhere in the existing code
-    return [processed_files], autocorrelation_flag  # Return the flag along with the file path
+    # During the upsampling process in c_upsample.py
+    # Convert the input data to 32-bit float
+    interpolated_input_192k32b = interpolate_best(cpy_file_data.astype(np.float32), sample_rate, 192000)
+
+    # Save the interpolated input to cpy
+    cpy = f"{base}.wav"
+    cpy_path = os.path.join(cpy_folder, cpy)
+    save_audio(cpy_path, interpolated_input_192k32b, 192000)
+
+    # Load the upsampled file
+    cpy_data, _ = load_audio(cpy_path)
+
+    return processed_files  # Return the file path

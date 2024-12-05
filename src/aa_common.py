@@ -24,6 +24,8 @@ wavecycle_samples_target_192 = 0  # Global variable for target samples per wavec
 selected_segment = None
 wavecycle_samples = {}  # Centralized dictionary to store segment names and their sample counts
 wavecycle_samples_target = 0  # Global variable to store the selected target
+mode_interval = 0
+autocorrelation_flag = False  # Default to not using autocorrelation
 global_segment_sizes = []
 highlighted_segment = []  # Track the highlighted segment so we can clear it
 sample_index = 0  # Global variable to store the current sample index
@@ -53,6 +55,25 @@ def set_all_segment_sizes(sizes):
 def get_all_segment_sizes():
     return global_segment_sizes
 
+# Function to set the mode_interval
+def set_mode_interval(samples):
+    global mode_interval
+    mode_interval = samples
+
+# Function to get the mode_interval
+def get_mode_interval():
+    global mode_interval
+    return mode_interval
+
+# Function to set the autocorrelation_flag
+def set_autocorrelation_flag(flag):
+    global autocorrelation_flag
+    autocorrelation_flag = flag
+
+# Function to get the autocorrelation_flag
+def get_autocorrelation_flag():
+    global autocorrelation_flag
+    return autocorrelation_flag
 
 def initialize_settings():
     global global_settings
@@ -291,65 +312,22 @@ def ensure_tmp_folder():
     # cpy_folder = os.path.join(tmp_folder, "cpy")
     # os.makedirs(cpy_folder, exist_ok=True)
 
-'''
-def is_rising_from_zero(data):
-    """
-    Check if the first few samples are all positive and rising from zero, ignoring samples within the zero tolerance.
-    """
-    # Ensure the first sample is within the zero tolerance
-    if abs(data[0]) > zero_threshold:
-        return False
-    
-    # Check if the next samples are strictly positive, ignoring those within zero tolerance
-    for i in range(1, ZERO_WINDOW + 1):
-        if data[i] <= zero_threshold:  # Ensure strictly positive
-            return False
-    
-    return True
-'''
-def is_rising_from_zero(samples, fade_length=5):
-    """Analyze if the file starts with a rising zero-crossing from zero."""
-    
-    # Ensure that samples[0] is a scalar and check it against the zero threshold
-    if np.isscalar(samples[0]) and abs(samples[0]) <= zero_threshold and np.all(samples[1:fade_length] > 0):
-        # print("File starts from zero rising.")
-        return samples, 0  # No modification needed
-    
-    # If the first few samples are not rising from zero, return failure
-    return None, -1  # Indicate that we did not find a rising start
+def is_rising_from_zero(samples):
+    # If stereo (2D array), check both channels separately
+    if samples.ndim == 2:  # Check for stereo data
+        return (np.any((samples[:, 0][:-1] <= 0) & (samples[:, 0][1:] > 0)) or
+                np.any((samples[:, 1][:-1] <= 0) & (samples[:, 1][1:] > 0)))
+    else:  # Mono data
+        return np.any((samples[:-1] <= 0) & (samples[1:] > 0))
 
-# Analyze if the file ends rising to zero
-def is_rising_to_zero(samples, fade_length=5):
-    """Analyze if the file ends with a rising zero-crossing to zero."""
-    
-    # Check if the last sample is within the zero threshold and the previous few samples are negative
-    if abs(samples[-1]) <= zero_threshold and np.all(samples[-fade_length-1:-1] < 0):
-        # print("File ends by rising to zero.")
-        return samples, 0  # No modification needed
-    
-    # If the last few samples are not rising to zero, return failure
-    return None, -1  # Indicate that we did not find a proper end
+def is_rising_to_zero(samples):
+    # If stereo (2D array), check both channels separately
+    if samples.ndim == 2:  # Check for stereo data
+        return (np.any((samples[:, 0][:-1] >= 0) & (samples[:, 0][1:] < 0)) or
+                np.any((samples[:, 1][:-1] >= 0) & (samples[:, 1][1:] < 0)))
+    else:  # Mono data
+        return np.any((samples[:-1] >= 0) & (samples[1:] < 0))
 
-'''   
-def is_rising_to_zero(data):
-    """
-    Check if the last few samples are all negative and approaching zero, ignoring samples within the zero tolerance.
-    """
-    # Ensure the data length is sufficient to check the last few samples
-    if len(data) < ZERO_WINDOW:
-        return False
-
-    # Ensure the last sample is within the zero tolerance
-    if abs(data[-1]) > zero_threshold:
-        return False
-    
-    # Check if the previous samples are strictly negative, ignoring those within zero tolerance
-    for i in range(-2, -ZERO_WINDOW - 1, -1):  # Adjusting range to avoid out-of-bounds
-        if data[i] >= -zero_threshold:  # Ensure strictly negative
-            return False
-    
-    return True
-'''
 def is_rising_zero_crossing(data, index):
     """Check if there is a valid rising zero-crossing starting from the given index."""
     

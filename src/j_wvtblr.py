@@ -218,20 +218,66 @@ def plot_concat(concat_file_path, fixed_length, sr, base, concat_folder, suffix_
 
     plt.show()
 
-def concatenate_files(input_folder, output_file):
-    all_frames = []
-    for filename in sorted(os.listdir(input_folder)):
-        if filename.endswith('.wav'):
-            file_path = os.path.join(input_folder, filename)
-            data, sr = sf.read(file_path)
-            all_frames.append(data)
-    
-    if all_frames:
-        wavetable_data = np.concatenate(all_frames, axis=0)
-        sf.write(output_file, wavetable_data, sr, subtype='FLOAT')
-        return output_file, sr
-    else:
-        raise ValueError("No valid .wav files found for concatenation.")
+def concatenate_files(frames_folder, base, from_frames, channel_files, concat_folder):
+    # Check if there are any files to concatenate
+    if not from_frames or not channel_files:
+        print("No frame files found to concatenate.")
+        return None
+
+    concatenated_files = {}
+    sample_rate = None
+
+    # Iterate over each channel and concatenate the corresponding files
+    for channel_name, file_path in channel_files.items():
+        data_list = []
+
+        # Get all frame files for the current channel
+        matching_files = [file for file in from_frames if channel_name in file]
+        matching_files.sort()  # Sort files to maintain the correct order
+
+        for file in matching_files:
+            data, sr = sf.read(file, dtype='float32')
+            if sample_rate is None:
+                sample_rate = sr  # Set the sample rate from the first file
+            data_list.append(data)
+
+        # Concatenate the data arrays for the current channel
+        concatenated_data = np.concatenate(data_list)
+        
+        # Define the output path for the concatenated file
+        output_file_path = os.path.join(concat_folder, f"{base}_{channel_name}.wav")
+        sf.write(output_file_path, concatenated_data, sample_rate)
+        concatenated_files[channel_name] = output_file_path
+
+    return concatenated_files, sample_rate
+
+def regex_channel_files(frames_folder, base):
+    from_frames = []  # List to store all matching frame file paths
+    channel_files = {}  # Dictionary to store file paths by channel name
+
+    # Define a regex pattern to match the filenames
+    pattern = re.compile(rf"^{re.escape(base)}(_Mid|_Side|_Left|_Right|_Mono)_seg_\d{{4}}\w*\.wav$")
+
+    # Iterate through the files in the frames folder
+    for file_name in os.listdir(frames_folder):
+        if pattern.match(file_name):
+            # Construct the full file path
+            file_path = os.path.join(frames_folder, file_name)
+            from_frames.append(file_path)
+
+            # Extract the channel name from the filename
+            channel_name_match = re.search(r"_(Mid|Side|Left|Right|Mono)", file_name)
+            if channel_name_match:
+                channel_name = channel_name_match.group(1)
+                channel_files[channel_name] = file_path
+
+    # Ensure that from_frames and channel_files are valid
+    if not from_frames or not channel_files:
+        print("No matching frame files found in the frames folder.")
+        return None, None
+
+    return from_frames, channel_files
+
 
 def apply_padding_if_needed(data, target_length, amplitude_tolerance_db):
     """Apply padding to the data if it's shorter than the target length."""
@@ -338,32 +384,37 @@ def check_wavetable(file_path):
     return True
 
 def run(atk_deleted, dev_deleted, normal_deleted):
-    # Use these variables inside the function
-    suffix_one = ""
-    if atk_deleted:
-        suffix_one += "_-atk"
-    if dev_deleted:
-        suffix_one += "_-dev"
-    if normal_deleted:
-        suffix_one += "_-norm"
-    # Localize imports inside the run function to avoid circular import
-    from aa_common import get_base, get_tmp_folder, input_with_defaults, plot_wav_file_interactive, selected_segment
-
-    base = get_base()
-    tmp_folder = get_tmp_folder()
-    seg_folder = os.path.join(tmp_folder, 'seg')
-
-    frames_folder = os.path.join(tmp_folder, 'frames')
-    concat_folder = os.path.join(tmp_folder, 'concat')
-    os.makedirs(concat_folder, exist_ok=True)
+    from aa_common import get_base, get_tmp_folder, input_with_defaults
     
-    output_file_frames = f"{base}_frames_all.wav"
-    output_path_frames = os.path.join(concat_folder, output_file_frames)
+    tmp_folder = get_tmp_folder()
+    frames_folder = os.path.join(tmp_folder, "frames")
+    concat_folder = os.path.join(tmp_folder, "concat")
+    base = get_base()
 
-    output_path_frames, sr_frames = concatenate_files(frames_folder, output_path_frames)
+    print(f"frames_folder: {frames_folder}")
+    print(f"concat_folder: {concat_folder}")
+    print(f"base: {base}")
 
+    # Collect frame files and channel-specific file paths
+    from_frames, channel_files = regex_channel_files(frames_folder, base)
+
+    if not from_frames or not channel_files:
+        print("No matching frame files found or no channel files identified.")
+        return
+
+    print(f"channel_files: {channel_files}")
+
+    # Call concatenate_files to process and group files by channel
+    concatenated_files, sr_frames = concatenate_files(frames_folder, base, from_frames, channel_files, concat_folder)
+
+    if not concatenated_files:
+        print("No concatenated files were created.")
+        return
+
+    print(f"Concatenated files: {concatenated_files}")
+
+    # Proceed with wavetable creation options
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     options = input_with_defaults(
         "Choose wavetable creation method (you can choose multiple, e.g., 1,2 or 1-3):\n"
         "1. Fit whole within 256*frames divisible by 2048 samples (default)\n"
@@ -388,40 +439,65 @@ def run(atk_deleted, dev_deleted, normal_deleted):
             except ValueError:
                 continue
 
+    suffix_one = "_fit"
     if 1 in selected_options:
-        fitted_wavetable_path = os.path.join(wavetables_folder, f"{base}_{timestamp}{suffix_one}_fit.wav")
-        create_wavetable_from_concat(output_path_frames, fitted_wavetable_path)
+        # Process each channel's concatenated file for option 1
+        for channel_name, concat_file_path in concatenated_files.items():
+            fitted_wavetable_path = os.path.join(
+                wavetables_folder, f"{base}_{channel_name}_{timestamp}{suffix_one}.wav"
+            )
+            create_wavetable_from_concat(concat_file_path, fitted_wavetable_path)
 
     if 2 in selected_options:
-        timestamp_state = datetime.now().strftime("%Y%m%d_%H%M%S")
-        data_frames, sr_frames = sf.read(output_path_frames, dtype='float32')
-        data_frames_padded = apply_padding_if_needed(data_frames, fixed_length, -60)
-        split_and_save_wav_with_correct_padding(data_frames_padded, wavetables_folder, f"{base}", suffix_one, timestamp_state, "chunk")
- 
+        suffix_one = "_chunk"
+        # Process each channel's concatenated file for option 2
+        for channel_name, concat_file_path in concatenated_files.items():
+            data_frames, sr_frames = sf.read(concat_file_path, dtype='float32')
+            data_frames_padded = apply_padding_if_needed(data_frames, fixed_length, -60)
+            split_and_save_wav_with_correct_padding(
+                data_frames_padded,
+                wavetables_folder,
+                f"{base}_{channel_name}",
+                suffix_one,
+                timestamp,
+                "chunk"
+            )
+
     if 3 in selected_options:
-        # Call plot_concat to let the user select a segment
-        plot_concat(output_path_frames, fixed_length=fixed_length, sr=sr_frames, base=base, concat_folder=concat_folder, suffix_one=suffix_one)
+        suffix_one = "_pick"
+        # Process each channel's concatenated file for option 3
+        for channel_name, concat_file_path in concatenated_files.items():
+            plot_concat(
+                concat_file_path,
+                fixed_length=fixed_length,
+                sr=sr_frames,
+                base=f"{base}_{channel_name}",
+                suffix_one=suffix_one
+            )
 
-        # Create the picked_wavetable_path for saving the selected segment
-        picked_wavetable_path = os.path.join(wavetables_folder, f"{base}_{timestamp}{suffix_one}_pick.wav")
+            picked_wavetable_path = os.path.join(
+                wavetables_folder, f"{base}_{channel_name}_{timestamp}{suffix_one}.wav"
+            )
 
+            # Save picked segment if selected
+            if selected_segment is not None:
+                save_pick(
+                    selected_segment,
+                    sr_frames,
+                    f"{base}_{channel_name}_{timestamp}{suffix_one}",
+                    wavetables_folder,
+                    "pick"
+                )
+                print(f"Saved selection to: {picked_wavetable_path}")
+                print("Proceeding with the selected segment.")
 
-        # After the plot is closed, check if a segment was selected and proceed
-        if selected_segment is not None:
-            save_pick(selected_segment, sr_frames, f"{base}{suffix_one}_pick_{timestamp}", wavetables_folder, "pick")
-            print(f"Saved selection to: {picked_wavetable_path}")
-            print("Proceeding with the selected segment.")
-        else:
-            # print("No segment selected. Proceeding without saving.")
-            pass
-
-        # Only reset `selected_segment` after all the checks and prints are done
-        selected_segment = None  # Reset after processing all logic
-
+            # Reset `selected_segment` after processing
+            selected_segment = None
 
     if not selected_options & {1, 2, 3}:
         print("Invalid option(s)")
 
+    # Validate and check generated wavetables
     for wav_file in os.listdir(wavetables_folder):
         if wav_file.endswith('.wav'):
             file_path = os.path.join(wavetables_folder, wav_file)
