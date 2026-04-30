@@ -1,0 +1,38 @@
+# Revisions
+
+## 2026-04-30
+
+**New features**
+- Wavetables now write a strictly RIFF-valid Serum `clm ` chunk (loads identically in Serum; older outputs still work but were technically out-of-spec).
+- Autocorrelation segmentation (method 2) actually produces segment files now — previously set the period and exited early.
+- FFT-based autocorrelation: full-file analysis runs in ~47 ms instead of minutes.
+- Picker mode (option 3) supports click-and-drag range selection; the selected range is auto-fit to 524288 samples (halve-and-pad) and snapped to the nearest zero crossing.
+- Burg LP-residual onset detector (`onset_burg.py`) marks attack segments based on actual transients, replacing the old length-stability heuristic. Reversible via `_attack_detection_backup/revert.py` if you still have that folder.
+- New helper commands:
+  - `sxy` — inspect a wavetable's metadata (lists `wavetables/` and runs `sox --i` on your pick).
+  - `wvtbl_singles` — concatenate-singles workflow.
+
+**Quality of life**
+- Phase headers `[N/8] ...` between pipeline modules so you can see where you are.
+- `tqdm` progress bars in `e_seg`, `h_interpolate`, `f_sort`, `d_interval`.
+- Screen clears before each interactive menu (file pick, method choice, channel select, frequency select, segment-keep, wavetable method).
+- `j_wvtblr` prints saved wavetable paths at end of run, filtered by mtime so old files don't clutter the list.
+- `wvtbl.cmd` / `wvtbl_singles.cmd` call the venv's `python.exe` by absolute path — works from cmd, bash, or PowerShell regardless of activation state.
+
+**Bug fixes**
+- Sine-table null test produces an exact-output round-trip (no resampling when segment is already 2048 samples).
+- `f_sort`: missing parens on `get_wavecycle_samples_target()`; divide-by-zero when global target is 0 now falls back to autocorr-derived local mode.
+- `j_wvtblr`: option 3 was saving twice; vestigial `concat_folder` param was breaking option 3; dead code removed after `plt.show()`.
+- `d_interval`: `find_peaks(prominence=1.0)` was mathematically broken on a normalized ACF; now sweeps adaptively (0.3 → 0.1 → 0.05). Removed ghost `plot_peaks_02` call.
+- `e_seg`: was silently producing 0 deviants/attacks in zero-cross mode because `set_all_segment_sizes()` wasn't being called.
+
+**Repo hygiene**
+- Added `.gitignore` (covers `.venv/`, `wvtbl_win/`, `__pycache__/`, build outputs, Claude scratch, sublime workspace).
+- Build cache `.pyc` files removed from history.
+- `input/` validation set (`sinetable.wav`, `flange220.wav`, `00_README.md`) kept in repo as canonical test fixtures.
+
+**Known limitations** (see `_claude/HANDOFF.md` for full list)
+- Zero-cross can lock onto harmonic-rate periodicity on harmonic-rich material — use autocorr (method 2) for those inputs.
+- Burg onset detector doesn't fire on envelope-only attacks (no spectral transient).
+- `_base` filename sanitization mismatch between `b_menu` and `process_single_file` can leave a stranded folder.
+- Filename sanitizer strips `#` (loses musical meaning, e.g. C#3 → C3).
