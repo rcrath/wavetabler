@@ -8,8 +8,13 @@ import soundfile as sf
 import math
 from datetime import datetime
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, SpanSelector
 import re
+from pathlib import Path
+from struct import pack
+import aa_common
+from aa_common import add_serum_chunk
+
 
 # Local default values for wavecycle size and frame count
 wavecycle_size = 2048
@@ -19,93 +24,71 @@ WAVETABLE_SIZE = wavecycle_size * frame_count
 # Consolidate into a single variable for total samples required (frame_count * wavecycle_size)
 fixed_length = wavecycle_size * frame_count
 
-selected_segment = None
+selected_segment = None     # picked + fitted data, ready to write
+selected_range = None       # (xmin_seconds, xmax_seconds) — set by SpanSelector
 
 wavetables_folder = os.path.join(os.getcwd(), 'wavetables')
 os.makedirs(wavetables_folder, exist_ok=True)
 
-# Functions
-def pick_on_click(event, data, sr, fig, ax, total_samples, fixed_length, wavecycle_size):
-    global selected_segment  # Store the selected segment globally for later use
 
-    if event.inaxes != ax:
-        return  # Ignore clicks outside the plot
+def fit_data_to_wavetable_size(data, sr):
+    """
+    Halve via resampy (when too long) / zero-pad (when too short) until data is
+    exactly fixed_length samples. Same algorithm as create_wavetable_from_concat,
+    extracted so the picker can reuse it on a user-selected range.
+    """
+    while len(data) > fixed_length:
+        new_length = len(data) // 2
+        data = resampy.resample(data, sr, sr // 2, axis=-1)[:new_length]
+    if len(data) < fixed_length:
+        return np.pad(data, (0, fixed_length - len(data)), 'constant', constant_values=(0, 0))
+    if len(data) > fixed_length:
+        return data[:fixed_length]
+    return data
 
-    clicked_sample_index = int(event.xdata * sr)
-
-    # If the file is smaller than fixed_length, pad with a drunken walk
-    if total_samples < fixed_length:
-        print(f"File is too short: {total_samples} samples. Padding to {fixed_length} samples.")
-        padding = generate_drunken_walk(fixed_length - total_samples, amplitude_db=-60)
-        selected_segment = np.concatenate([data, padding])
+def pick_on_proceed(event, data, sr, base, suffix_two):
+    """
+    Apply the halve+pad fit to whatever range the user dragged out, then save.
+    """
+    global selected_range
+    if selected_range is None:
+        print("No range selected. Click and drag on the plot to select a range first.")
         return
 
-    # Handle clicks near the start of the graph (select the first fixed_length samples)
-    if clicked_sample_index < wavecycle_size / 2:
-        nearest_interval = 0
-        selected_segment = data[:fixed_length]
-        print(f"Selected the first {fixed_length} samples.")
-    
-    # Handle clicks near the end of the graph (select the last fixed_length samples)
-    elif clicked_sample_index > total_samples - fixed_length:
-        nearest_interval = total_samples - fixed_length
-        selected_segment = data[nearest_interval:]
-        print(f"Selected the last {fixed_length} samples.")
-    
-    # Handle clicks inside the graph (move to the nearest wavecycle interval)
-    else:
-        nearest_interval = int(round(clicked_sample_index / wavecycle_size)) * wavecycle_size
-        if nearest_interval + fixed_length > total_samples:
-            nearest_interval = total_samples - fixed_length  # Shift to make sure it doesn't overflow
-        selected_segment = data[nearest_interval:nearest_interval + fixed_length]
-        print(f"Selected samples from {nearest_interval} to {nearest_interval + fixed_length}.")
+    xmin, xmax = selected_range
+    start = max(0, int(round(xmin * sr)))
+    end = min(len(data), int(round(xmax * sr)))
+    if end <= start:
+        print("Empty range. Try dragging across a wider area.")
+        return
 
-    # Remove previous highlights and update the graph
-    while len(ax.lines) > 1:
-        ax.lines[-1].remove()  # Remove the last line
-
-    # Highlight the new selected segment
-    highlight_time = np.linspace(nearest_interval / sr, (nearest_interval + fixed_length) / sr, fixed_length)
-    ax.plot(highlight_time, selected_segment[:fixed_length], color='orange', label="Selected Segment", linewidth=2)
-    ax.legend()
-    fig.canvas.draw()
-
-
-def pick_on_proceed(event, data, sr, base, concat_folder, suffix_two):
-    global selected_segment
-
-    if selected_segment is not None:
-        # Save the selected segment
-        save_pick(selected_segment, sr, base, wavetables_folder, suffix_two)
-        print(f"Proceeding with the selected segment.")
-        plt.close('all')  # Close the plot after saving
-    else:
-        print("No segment selected. Proceeding without saving.")
-        plt.close('all')
+    picked = data[start:end]
+    fitted = fit_data_to_wavetable_size(picked, sr)
+    print(f"Selected {end - start} samples → fitted to {fixed_length} ({len(fitted) - (end - start):+d} from pad/halve)")
+    save_pick(fitted, sr, base, wavetables_folder, suffix_two)
+    plt.close('all')
 
 
 def pick_on_cancel(event):
     print("Selection canceled. No changes made.")
-    plt.close('all')  # Close the plot
+    plt.close('all')
 
 def save_pick(segment_data, sr, base, wavetables_folder, _two):
     """
     Save the selected segment to the wavetables directory located at the top level.
-    
-    Parameters:
-    - segment_data: Numpy array of the selected audio segment.
-    - sr: Sample rate.
-    - base: Base name for the file.
-    - wavetables_folder: The folder where the wavetable file should be saved.
-    - suffix: Additional suffix for the filename.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.makedirs(wavetables_folder, exist_ok=True)  # Ensure wavetables folder exists
+    os.makedirs(wavetables_folder, exist_ok=True)
     suffix_two = "pick"
-    output_file = os.path.join(wavetables_folder, f"{base}_{timestamp}_{suffix_two}.wav")
+    method_tag = aa_common.get_method_suffix()
+    output_file = os.path.join(wavetables_folder, f"{base}{method_tag}_{timestamp}_{suffix_two}.wav")
     
     try:
         sf.write(output_file, segment_data, sr, subtype='FLOAT')
+        
+        # Add Serum-compatible chunk
+        add_serum_chunk(Path(output_file))
+
         print(f"Saved selection to {output_file}")
         return True
     except Exception as e:
@@ -113,108 +96,50 @@ def save_pick(segment_data, sr, base, wavetables_folder, _two):
         return False
 
 
-def plot_concat(concat_file_path, fixed_length, sr, base, concat_folder, suffix_one):
-    global selected_segment  # Global to store the selected segment
-    
+
+def plot_concat(concat_file_path, fixed_length, sr, base, suffix_one):
+    """
+    Show the concatenated waveform and let the user click-and-drag to select a
+    range. Any range works — fit_data_to_wavetable_size halves or pads to land
+    on exactly fixed_length samples on save.
+    """
+    global selected_range
+    selected_range = None  # Reset between channels
+
     data, sr = sf.read(concat_file_path)
-    total_samples = len(data)
     time = np.linspace(0, len(data) / sr, num=len(data))
 
     fig, ax = plt.subplots(figsize=(15, 5))
-
-    # Plot the full data waveform
     ax.plot(time, data, label="Concatenated Wavetable")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Amplitude")
-    ax.set_title("Select a Segment (Nearest 524,288 Samples)")
-    ax.legend()
+    ax.set_title("Click and drag to select a range — Proceed to save, Cancel to abort")
+    ax.legend(loc='upper right')
 
-    # Add Proceed and Cancel buttons
     ax_proceed = plt.axes([0.7, 0.01, 0.1, 0.05])
     ax_cancel = plt.axes([0.81, 0.01, 0.1, 0.05])
     btn_proceed = Button(ax_proceed, 'Proceed')
     btn_cancel = Button(ax_cancel, 'Cancel')
 
-    # Button actions
-    btn_proceed.on_clicked(lambda event: pick_on_proceed(event, data, sr, base, concat_folder, suffix_one))
+    btn_proceed.on_clicked(lambda event: pick_on_proceed(event, data, sr, base, suffix_one))
     btn_cancel.on_clicked(pick_on_cancel)
 
-    # Connect the click event for segment selection
-    fig.canvas.mpl_connect('button_press_event', lambda event: pick_on_click(event, data, sr, fig, ax, total_samples, fixed_length, wavecycle_size))
+    def on_select(xmin, xmax):
+        global selected_range
+        if xmax <= xmin:
+            return
+        selected_range = (xmin, xmax)
+        n = int(round((xmax - xmin) * sr))
+        print(f"Range: {xmin:.3f}s – {xmax:.3f}s  ({n} samples — will be {'halved' if n > fixed_length else 'padded'} to {fixed_length})")
 
-    plt.show()
-
-
-    # Event handler for clicks
-    def on_click(event):
-        global selected_segment
-        if event.inaxes != ax:
-            # Click outside the plot area
-            # Determine if it's near the start or end
-            if event.xdata < 0.1 * time[-1]:
-                selected_segment = data[:fixed_length]
-                print("Selected the first 524,288 samples.")
-            elif event.xdata > 0.9 * time[-1]:
-                selected_segment = data[-fixed_length:]
-                print("Selected the last 524,288 samples.")
-            else:
-                # Round to the nearest 524,288 interval
-                nearest_index = int(round(event.xdata * sr / fixed_length)) * fixed_length
-                nearest_index = max(0, min(nearest_index, total_samples - fixed_length))
-                selected_segment = data[nearest_index:nearest_index + fixed_length]
-                print(f"Selected samples from {nearest_index} to {nearest_index + fixed_length}.")
-        else:
-            # Click inside the plot area
-            sample_index = int(event.xdata * sr)
-            nearest_interval = int(round(sample_index / fixed_length)) * fixed_length
-            if nearest_interval < fixed_length / 2:
-                nearest_interval = 0
-            elif nearest_interval > total_samples - fixed_length / 2:
-                nearest_interval = total_samples - fixed_length
-            else:
-                # Ensure it's aligned to the 524,288 interval
-                nearest_interval = int(round(nearest_interval / fixed_length)) * fixed_length
-
-            # Clamp the index to valid range
-            nearest_interval = max(0, min(nearest_interval, total_samples - fixed_length))
-            selected_segment = data[nearest_interval:nearest_interval + fixed_length]
-            print(f"Selected samples from {nearest_interval} to {nearest_interval + fixed_length}.")
-
-        # Highlight the selected segment
-        while len(ax.lines) > 1:
-            ax.lines.pop()  # Remove previous highlights, keeping the original plot line
-        segment_time = np.linspace(0, fixed_length / sr, num=fixed_length)
-        if data.ndim == 2:
-            ax.plot(segment_time, selected_segment[:, 0], color='orange', label="Selected Left Channel", linewidth=2)
-            ax.plot(segment_time, selected_segment[:, 1], color='orange', label="Selected Right Channel", linewidth=2)
-        else:
-            ax.plot(segment_time, selected_segment, color='orange', label="Selected Segment", linewidth=2)
-        ax.legend()
-        fig.canvas.draw()
-
-    # Button event handlers
-    def on_proceed_clicked(event):
-        global selected_segment
-        if selected_segment is not None:
-            success = save_pick(selected_segment, sr, concat_file_path)
-            if success:
-                plt.close(fig)
-                print("Proceeding with the selected segment.")
-            else:
-                print("Failed to save the selection.")
-        else:
-            print("No segment selected. Please select a segment first.")
-
-    def on_cancel_clicked(event):
-        global selected_segment
-        selected_segment = None
-        plt.close(fig)
-        print("Selection canceled. Proceeding with the full waveform.")
-
-    # Connect the events
-    fig.canvas.mpl_connect('button_press_event', on_click)
-    btn_proceed.on_clicked(on_proceed_clicked)
-    btn_cancel.on_clicked(on_cancel_clicked)
+    # SpanSelector keeps a reference attached to the axes; assign so it's not GC'd.
+    span = SpanSelector(
+        ax, on_select, 'horizontal',
+        useblit=True,
+        props=dict(alpha=0.3, facecolor='orange'),
+        interactive=True,
+    )
+    fig._span_selector_ref = span  # prevent GC of the widget
 
     plt.show()
 
@@ -308,57 +233,40 @@ def process_and_pad_wavetables(concat_file_path, output_folder, output_base_name
     sf.write(output_file_path, data_padded, sr, subtype='FLOAT')
 
 def create_wavetable_from_concat(concat_file_path, output_wavetable_path):
-    frame_length = 2048
-    total_frames = 256
-    total_samples_required = frame_length * total_frames
-
-    # Load the concat file
     concat_data, sr = sf.read(concat_file_path)
+    fitted = fit_data_to_wavetable_size(concat_data, sr)
+    sf.write(output_wavetable_path, fitted, sr, subtype='FLOAT')
+    add_serum_chunk(Path(output_wavetable_path))
 
-    # General case: Keep halving the number of samples per wavecycle until it fits
-    while len(concat_data) > total_samples_required:
-        new_length = len(concat_data) // 2
-        concat_data = resampy.resample(concat_data, sr, sr // 2, axis=-1)[:new_length]
-    
-    # Ensure the result is exactly 2048 * 256 samples long
-    if len(concat_data) < total_samples_required:
-        # Pad with silence if shorter
-        padded_data = np.pad(concat_data, (0, total_samples_required - len(concat_data)), 'constant', constant_values=(0, 0))
-    elif len(concat_data) > total_samples_required:
-        # Truncate if longer (shouldn't happen with the above loop, but just in case)
-        padded_data = concat_data[:total_samples_required]
-    else:
-        padded_data = concat_data
 
-    # Save the padded data as the final wavetable
-    sf.write(output_wavetable_path, padded_data, sr, subtype='FLOAT')
-
-def split_and_save_wav_with_correct_padding(data, output_folder, base_name, suffix_one, timestamp, wavetable_type):
-
+def split_and_save_wav_with_correct_padding(data, output_folder, base_name, suffix_one, timestamp):
     sr = 192000
     segment_length = len(data)
     num_frames_per_file = 2048 * 256
 
-    # Calculate the number of full wavetable files that can be created
     num_full_files = segment_length // num_frames_per_file
-
     for i in range(num_full_files):
         counter = f"{i+1:02d}"
         start_sample = i * num_frames_per_file
         end_sample = start_sample + num_frames_per_file
         segment = data[start_sample:end_sample]
-        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{wavetable_type}_{counter}.wav"
+        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{counter}.wav"
         output_file_path = os.path.join(output_folder, output_file_name)
+
         sf.write(output_file_path, segment, sr, subtype='FLOAT')
+        add_serum_chunk(Path(output_file_path))
 
     remainder = segment_length % num_frames_per_file
     if remainder > 0:
         padding_needed = num_frames_per_file - remainder
         last_segment = np.concatenate([data[-remainder:], np.zeros(padding_needed)])
         counter = f"{num_full_files + 1:02d}"
-        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{wavetable_type}_{counter}.wav"
+        output_file_name = f"{base_name}_{timestamp}{suffix_one}_{counter}.wav"
         output_file_path = os.path.join(output_folder, output_file_name)
+
         sf.write(output_file_path, last_segment, sr, subtype='FLOAT')
+        add_serum_chunk(Path(output_file_path))
+
 def check_wavetable(file_path):
     """Checks if the wavetable has the correct total length and every 2048th sample is near zero and rising."""
     data, sr = sf.read(file_path)
@@ -385,7 +293,11 @@ def check_wavetable(file_path):
 
 def run(atk_deleted, dev_deleted, normal_deleted):
     from aa_common import get_base, get_tmp_folder, input_with_defaults
-    
+
+    # Capture run start so we can identify which wavetables were saved this run,
+    # vs leftovers from previous runs in the same wavetables folder.
+    run_start_ts = datetime.now().timestamp()
+
     tmp_folder = get_tmp_folder()
     frames_folder = os.path.join(tmp_folder, "frames")
     concat_folder = os.path.join(tmp_folder, "concat")
@@ -415,6 +327,8 @@ def run(atk_deleted, dev_deleted, normal_deleted):
 
     # Proceed with wavetable creation options
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    method_tag = aa_common.get_method_suffix()  # '_z' or '_a' — identifies segmentation method in filename
+    aa_common.clear_screen()
     options = input_with_defaults(
         "Choose wavetable creation method (you can choose multiple, e.g., 1,2 or 1-3):\n"
         "1. Fit whole within 256*frames divisible by 2048 samples (default)\n"
@@ -444,7 +358,7 @@ def run(atk_deleted, dev_deleted, normal_deleted):
         # Process each channel's concatenated file for option 1
         for channel_name, concat_file_path in concatenated_files.items():
             fitted_wavetable_path = os.path.join(
-                wavetables_folder, f"{base}_{channel_name}_{timestamp}{suffix_one}.wav"
+                wavetables_folder, f"{base}_{channel_name}{method_tag}_{timestamp}{suffix_one}.wav"
             )
             create_wavetable_from_concat(concat_file_path, fitted_wavetable_path)
 
@@ -457,42 +371,25 @@ def run(atk_deleted, dev_deleted, normal_deleted):
             split_and_save_wav_with_correct_padding(
                 data_frames_padded,
                 wavetables_folder,
-                f"{base}_{channel_name}",
+                f"{base}_{channel_name}{method_tag}",
                 suffix_one,
                 timestamp,
-                "chunk"
             )
 
     if 3 in selected_options:
         suffix_one = "_pick"
-        # Process each channel's concatenated file for option 3
+        # Picker UI: plot_concat blocks until the user clicks Proceed (which
+        # triggers save_pick via pick_on_proceed) or Cancel. The picker now
+        # handles any selection length via fit_data_to_wavetable_size, so it
+        # works on short concat files too.
         for channel_name, concat_file_path in concatenated_files.items():
             plot_concat(
                 concat_file_path,
                 fixed_length=fixed_length,
                 sr=sr_frames,
                 base=f"{base}_{channel_name}",
-                suffix_one=suffix_one
+                suffix_one=suffix_one,
             )
-
-            picked_wavetable_path = os.path.join(
-                wavetables_folder, f"{base}_{channel_name}_{timestamp}{suffix_one}.wav"
-            )
-
-            # Save picked segment if selected
-            if selected_segment is not None:
-                save_pick(
-                    selected_segment,
-                    sr_frames,
-                    f"{base}_{channel_name}_{timestamp}{suffix_one}",
-                    wavetables_folder,
-                    "pick"
-                )
-                print(f"Saved selection to: {picked_wavetable_path}")
-                print("Proceeding with the selected segment.")
-
-            # Reset `selected_segment` after processing
-            selected_segment = None
 
     if not selected_options & {1, 2, 3}:
         print("Invalid option(s)")
@@ -503,4 +400,17 @@ def run(atk_deleted, dev_deleted, normal_deleted):
             file_path = os.path.join(wavetables_folder, wav_file)
             check_wavetable(file_path)
 
-    print(f"\nYour wavetables are in {wavetables_folder}\n")
+    # Report what was saved THIS run (mtime >= run_start_ts) so leftovers from
+    # earlier runs in the same folder don't get listed.
+    saved_this_run = sorted(
+        f for f in os.listdir(wavetables_folder)
+        if f.endswith('.wav')
+        and os.path.getmtime(os.path.join(wavetables_folder, f)) >= run_start_ts
+    )
+    print(f"\nWavetables saved to: {wavetables_folder}")
+    if saved_this_run:
+        for f in saved_this_run:
+            print(f"  {f}")
+    else:
+        print("  (no wavetables produced)")
+    print()

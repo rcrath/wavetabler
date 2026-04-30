@@ -7,6 +7,8 @@ import numpy as np
 from datetime import datetime
 from j_wvtblr import create_wavetable_from_concat, apply_padding_if_needed, split_and_save_wav_with_correct_padding, plot_concat, check_wavetable, fixed_length
 from aa_common import input_with_defaults
+
+
 def run(frames_folder, concat_folder, base_name, wavetables_folder):
     """
     Concatenate all audio files in the frames folder, create a single concatenated file,

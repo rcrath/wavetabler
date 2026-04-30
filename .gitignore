@@ -1,0 +1,13 @@
+_claude/
+.claude/
+.venv/
+wvtbl_win/
+__pycache__/
+*.sublime-workspace
+wavetables/*
+!wavetables/.gitkeep
+input/*
+!input/.gitkeep
+!input/00_README.md
+!input/sinetable.wav
+!input/flange220.wav

@@ -1,173 +1,162 @@
-# d_interval.py
-
+import os
+import time
 import numpy as np
 import soundfile as sf
-import os
-import aa_common  # Import aa_common for common functions and paths
-from scipy.stats import mode
-from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks, correlate
+from tqdm import tqdm
+import aa_common
+from aa_common import (
+    get_base, get_wavecycle_samples, set_wavecycle_samples, set_wavecycle_samples_target, input_with_defaults, get_tmp_folder, calculate_mode_wavecycle_length, set_all_segment_sizes, find_nearest_zero_crossing
+)
 
-def autocorr(data):
-    """Calculate the autocorrelation of the given data."""
-    n = len(data)
-    result = np.correlate(data, data, mode='full')
-    return result[n-1:]
 
-def find_relevant_peaks(autocorr):
-    """Find relevant peaks in the autocorrelation data."""
-    peaks = np.where((autocorr[1:] > 0) & (autocorr[:-1] <= 0))[0]
-    # print(f"Peaks found: {peaks}")
-    return peaks
+def segment_by_period(path, period):
+    """
+    Cut the audio at `path` into ~period-sample wavecycles, snapping each cut
+    to the nearest zero crossing for clean boundaries. Saves each segment to
+    tmp/seg/<basename>_seg_NNNN.wav and registers it in aa_common.
 
-def extract_best_interval(autocorr):
-    """Extract the best interval using peak detection and calculate the mode interval."""
-    # Normalize the autocorrelation to prepare for peak detection
-    norm_acorr = autocorr / np.max(autocorr)
+    This is what autocorrelation mode does instead of e_seg's per-cycle
+    zero-crossing detection: trust the autocorr-derived period and chop.
+    """
+    seg_folder = os.path.join(get_tmp_folder(), "seg")
+    os.makedirs(seg_folder, exist_ok=True)
 
-    # Optimized peak detection using additional parameters
-    peaks, _ = find_peaks(norm_acorr, prominence=0.5, distance=10, height=0.1)  # Adjusted parameters
-    if len(peaks) < 2:
-        print("Insufficient peaks found for interval analysis.")
-        return 0, 0  # Return zero values if not enough peaks are found
+    data, sample_rate = sf.read(path)
+    if data.ndim > 1:
+        data = data[:, 0]
 
-    # Calculate intervals between consecutive peaks
-    intervals = np.diff(peaks)
-    
-    # Find the mode of the intervals (most common interval)
-    mode_result = mode(intervals)
-    best_interval = mode_result.mode[0] if isinstance(mode_result.mode, np.ndarray) else mode_result.mode
-    count = mode_result.count[0] if isinstance(mode_result.count, np.ndarray) else mode_result.count
-    confidence = count / len(intervals) if len(intervals) > 0 else 0
-    # Calculate how many intervals are within ±5 samples of the mode interval
-    nearby_count = np.sum(np.abs(intervals - best_interval) <= 10)
-    # Calculate the tolerance range as 1% of the mode interval
-    # mode_tolerance = best_interval * 0.01
+    file_base = os.path.splitext(os.path.basename(path))[0]
+    snap_window = max(8, min(64, period // 8))  # ~12% of period, capped at 64
 
-    if best_interval is not None:
-        print(f"Best interval: {best_interval} samples (mode of intervals), Confidence: {confidence:.2f}")
-    else:
-        print("Could not determine a best interval.")
+    # Estimate count up front so tqdm shows real progress
+    estimated = max(1, len(data) // period)
 
-    return best_interval, count, confidence, nearby_count
-
-def plot_segment_size_distribution(intervals, best_interval):
-    """Plot the distribution of segment sizes and mark the mode interval."""
-    # Calculate the counts for each unique interval size
-    unique_intervals, counts = np.unique(intervals, return_counts=True)
-    
-    # Plot the distribution
-    plt.figure(figsize=(10, 6))
-    plt.bar(unique_intervals, counts, color='lightblue', edgecolor='black')
-    plt.axvline(best_interval, color='red', linestyle='--', label=f"Mode: {best_interval} samples")
-    plt.xlabel("Segment Size (Samples)")
-    plt.ylabel("Count")
-    plt.title("Distribution of Segment Sizes\nLook for a clearly prominent mode: \nthe more prominent, the more certain the results. \nClose to continue.", fontsize=10)
-    plt.legend()
-    plt.grid(axis='y', linestyle='--', alpha=0.5)
-    # Add explanatory text
-    # plt.text(0.5, -0.15, "Look for a clearly prominent mode: the more prominent, the more certain the results. Close to continue.",
-    #         wrap=True, horizontalalignment='center', fontsize=10, color='gray', transform=plt.gcf().transFigure)
-    plt.show()
-
-def segment_and_save(data, sample_rate, peaks, seg_folder, base):
-    segment_count = 0
-    segments = []
-    all_segmented_files = []
     segment_sizes = []
+    pos = 0
+    seg_index = 0
+    pbar = tqdm(total=estimated, desc="  segmenting by period", unit="seg", leave=False)
+    while pos + period < len(data):
+        target = pos + period
+        end = find_nearest_zero_crossing(data, target, window=snap_window)
+        # Guard against snap producing a non-progressing or out-of-bounds end
+        if end <= pos or end > len(data):
+            end = min(target, len(data))
 
-    # Function to find a rising zero crossing starting from a specific point and searching forward
-    def find_rising_zero_crossing_forward(start_index):
-        for i in range(start_index, len(data) - 1):
-            if data[i] <= 0 < data[i + 1]:
-                return i
-        return start_index  # Fallback to the original index if no zero crossing is found
+        seg = data[pos:end]
+        seg_name = f"{file_base}_seg_{seg_index:04d}.wav"
+        sf.write(os.path.join(seg_folder, seg_name), seg, sample_rate, subtype='FLOAT')
+        segment_sizes.append((seg_name, len(seg)))
+        set_wavecycle_samples(seg_name, len(seg))
+        aa_common.set_segment_position(seg_name, pos)
+        pos = end
+        seg_index += 1
+        pbar.update(1)
+    pbar.close()
 
-    # Function to find a rising zero crossing starting from a specific point and searching backward
-    def find_rising_zero_crossing_backward(start_index):
-        for i in range(start_index, 0, -1):
-            if data[i - 1] < 0 <= data[i]:
-                return i
-        return 0  # Fallback to the beginning of the file if no zero crossing is found
-
-    # Ensure the seg_folder exists
-    if not os.path.exists(seg_folder):
-        os.makedirs(seg_folder)
-
-    for i in range(len(peaks) - 1):
-        start_peak = peaks[i]
-        next_peak = peaks[i + 1]
-        interval = next_peak - start_peak
-
-        # Find the previous rising zero crossing for the start
-        start = find_rising_zero_crossing_backward(start_peak)
-
-        # Calculate the initial end point
-        end = start + interval
-
-        # Adjust the end point to the next rising zero crossing if possible
-        end = find_rising_zero_crossing_forward(end)
-
-        if start < len(data) and end <= len(data):
-            segment = data[start:end]
-            segments.append(segment)
-
-            # Save the segment
-            segment_path = os.path.join(seg_folder, f"{base}_seg_{segment_count:04d}.wav")
-            sf.write(segment_path, segment, sample_rate)
-            all_segmented_files.append(segment_path)
-
-            # Collect segment details
-            segment_sizes.append((f"{base}_seg_{segment_count:04d}.wav", len(segment)))
-            segment_count += 1
-
-    return all_segmented_files, segment_sizes
+    set_all_segment_sizes(segment_sizes)
+    return seg_index
 
 
-    # Silence the first and last segments
-    if segments:
-        segments[0] = np.zeros_like(segments[0])
-        segments[-1] = np.zeros_like(segments[-1])
+def autocorr(x):
+    """
+    FFT-based autocorrelation. O(N log N) instead of np.correlate's O(N^2) —
+    matters because the upsampled input here is hundreds of thousands of
+    samples. Numerically equivalent for peak-detection purposes.
+    """
+    x = x - np.mean(x)
+    result = correlate(x, x, mode='full', method='fft')
+    result = result[result.size // 2:]
+    peak = np.max(np.abs(result))
+    if peak > 0:
+        result /= peak
+    return result
 
-    # Return both the segmented file paths and segment details
-    return all_segmented_files, segment_sizes
+def run(processed_channel_files):
+    # Reset accumulators so a re-run doesn't see stale entries.
+    aa_common.clear_segment_positions()
 
-def run(processed_files):
-    """Main function to process the given files and segment them using autocorrelation."""
+    for path in processed_channel_files:
+        print(f"Processing: {path}")
 
-    all_segment_sizes = []  # Collect all segment details
+        if not os.path.exists(path):
+            print(f"File not found: {path}")
+            continue
 
-    for file_path in processed_files:
-        data, sample_rate = sf.read(file_path)
-        autocorr_result = autocorr(data)
-        
-        # Calculate mode interval, count, and confidence using the updated method
-        mode_interval, count, confidence, nearby_count = extract_best_interval(autocorr_result)
-        frequency_hz = sample_rate / mode_interval if mode_interval > 0 else 0
-        # Store mode_interval in aa_common using set_mode_interval
-        aa_common.set_mode_interval(mode_interval)
+        try:
+            data, sample_rate = sf.read(path)
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            continue
 
-        base = os.path.splitext(os.path.basename(file_path))[0]  # Extract base name
-        seg_folder = os.path.join(aa_common.tmp_folder, "seg")
-        # Call segment_and_save and collect the segmented file paths and segment sizes
-        segmented_files, segment_sizes = segment_and_save(data, sample_rate, find_relevant_peaks(autocorr_result), seg_folder, base)
-        all_segment_sizes.extend(segment_sizes)  # Collect segment details
-        # print(f"segment_sizes: {segment_sizes}")
-        # print(f"all_segment_sizes: {all_segment_sizes}")
+        if data.ndim > 1:
+            data = data[:, 0]
 
+        if np.max(np.abs(data)) > 0:
+            data = data / np.max(np.abs(data))
 
-        # plot_segment_size_distribution(np.diff(find_relevant_peaks(autocorr_result)), mode_interval)
+        print(f"  computing autocorrelation ({len(data):,} samples)...", end='', flush=True)
+        t0 = time.perf_counter()
+        acf = autocorr(data)
+        print(f" done ({time.perf_counter() - t0:.2f}s)")
 
-    # Construct the wavecycle_samples dictionary
-    wavecycle_samples = {segment_name: sample_count for segment_name, sample_count in all_segment_sizes}
+        # Auto-falling prominence: start strict, ease off until peaks appear.
+        # Pre-existing default was 1.0, which is mathematically impossible for a
+        # normalized ACF (values in [-1, 1] can't have a prominence of 1.0).
+        print("  finding peaks...", end='', flush=True)
+        t0 = time.perf_counter()
+        peak_idxs = []
+        for prominence in (0.3, 0.1, 0.05):
+            peak_idxs, _ = find_peaks(acf, prominence=prominence)
+            if len(peak_idxs) > 1:
+                break
+        peak_intervals = np.diff(peak_idxs)
+        print(f" {len(peak_intervals)} intervals at prominence={prominence} ({time.perf_counter() - t0:.2f}s)")
 
-    # Loop through the dictionary and set each segment name and sample count
-    for segment_name, sample_count in wavecycle_samples.items():
-        aa_common.set_wavecycle_samples(segment_name, sample_count)
+        if len(peak_intervals) == 0:
+            print("Autocorrelation failed to detect a dominant period.")
+            if np.all(data == 0):
+                print("The input file appears to be silent. Skipping.")
+                continue
 
+            print(
+                "  No clear period found at any tried prominence. This signal\n"
+                "  likely doesn't have a stable single pitch (percussive,\n"
+                "  noisy, or polyphonic). Try zero-crossing mode (method 1)\n"
+                "  for inputs like this — autocorrelation needs a clear period.\n"
+            )
 
-    # Print for debugging purposes
-    # print(f"wavecycle_samples from d_interval: {wavecycle_samples}")
-    # print("go to f_sort")
+            try:
+                new_prominence = float(input_with_defaults(
+                    "Enter a custom prominence to retry (e.g., 0.02), or empty to abort: ",
+                    default="",
+                ))
+            except (ValueError, TypeError):
+                print("  No retry value given. Skipping this file.")
+                continue
+            if not new_prominence:
+                continue
 
+            peak_idxs, _ = find_peaks(acf, prominence=new_prominence)
+            peak_intervals = np.diff(peak_idxs)
+            if len(peak_intervals) == 0:
+                print("  Still no valid intervals. Skipping this file.")
+                continue
+
+        overall_mode = calculate_mode_wavecycle_length(peak_intervals)
+
+        if overall_mode == 0:
+            print("Could not determine a valid wavecycle length.")
+            continue
+
+        print(f"  period: {overall_mode} samples (avg {int(np.mean(peak_intervals))})")
+        set_wavecycle_samples_target(overall_mode)
+
+        # Actually segment the audio at period boundaries (snapped to zero crossings).
+        # This is what autocorrelation mode is supposed to do — without this, no
+        # segment files exist on disk and downstream phases (interpolate, build
+        # wavetable) have nothing to work with.
+        n_segs = segment_by_period(path, overall_mode)
+        print(f"  segmented into {n_segs} wavecycles")
 

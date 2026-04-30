@@ -96,7 +96,7 @@ def test_rising_conditions(data):
     start_valid = False
     for i in range(min(aa_common.sputter, sample_size - aa_common.ZERO_WINDOW + 1)):
         if aa_common.is_rising_from_zero(data[i:i + aa_common.ZERO_WINDOW]):
-            # print(f"Valid rising-from-zero found at index {i}.")
+            print(f"Valid rising-from-zero found at index {i}.")
             start_valid = True
             break
 
@@ -104,7 +104,7 @@ def test_rising_conditions(data):
     end_valid = False
     for i in range(sample_size - 1, max(aa_common.ZERO_WINDOW, sample_size - aa_common.sputter), -1):
         if aa_common.is_rising_to_zero(data[i - aa_common.ZERO_WINDOW + 1:i + 1]):
-            # print(f"Valid rising-to-zero found at index {i}.")
+            print(f"Valid rising-to-zero found at index {i}.")
             end_valid = True
             break
 

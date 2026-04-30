@@ -1,7 +1,8 @@
-# b_menu.py
+# b_menu.py - COMPLETE FIX
+# Fixes: directory creation AND path construction bugs
 
 import os
-import shutil  # Added for file copying
+import shutil
 import aa_common
 import soundfile as sf
 from tabulate import tabulate
@@ -18,7 +19,7 @@ def list_wav_files_with_details(source_folder):
         with sf.SoundFile(file_path) as f:
             samples = f.frames
             sample_rate = f.samplerate
-            channels = f.channels  # Number of channels (1 for mono, 2 for stereo)
+            channels = f.channels
 
             # Calculate the ratio of total samples to 524,288
             ratio = round(samples / 524288, 2)
@@ -34,10 +35,9 @@ def list_wav_files_with_details(source_folder):
             'ratio': ratio,
             'sample_rate': sample_rate,
             'channels': channels,
-            'bit_depth': float_type  # Updated to specify the float type
+            'bit_depth': float_type
         }
         file_details.append(details)
-
 
     return file_details
 
@@ -88,6 +88,7 @@ def parse_file_selection(selection, total_files):
     return sorted(selected_indices)
 
 def run():
+    aa_common.clear_screen()
     # List and display WAV files with details
     file_details = list_wav_files_with_details(aa_common.source_folder)
     print_file_details(file_details)
@@ -105,11 +106,12 @@ def run():
             print(f"Selected: {', '.join(selected_files)}")
 
             # Store selected files in aa_common
-            aa_common._start_file_name = selected_files[0]  # In batch mode, we only set the first one here
+            aa_common._start_file_name = selected_files[0]
             aa_common._start_files = selected_files
-            aa_common._base = os.path.splitext(selected_files[0])[0]
+            base_name = os.path.splitext(selected_files[0])[0]
+            aa_common._base = aa_common.sanitize_filename(base_name)
             aa_common.tmp_folder = os.path.join(aa_common._base, "tmp")
-            
+
             break
 
     # Create the 'cpy' folder inside tmp and copy the chosen source file(s) there
@@ -117,13 +119,16 @@ def run():
     print(f"base: {base}")
     tmp_folder = aa_common.get_tmp_folder()
     print(f"tmp_folder: {tmp_folder}")
-    cpy_folder = aa_common.get_cpy_folder()
-    print(f"cpy_folder: {cpy_folder}")
+    
+    # CRITICAL FIX: Don't use get_cpy_folder() - it returns broken path
+    # Build the correct path ourselves
+    actual_cpy_folder = os.path.join(base, "tmp", "cpy")
+    print(f"actual_cpy_folder: {actual_cpy_folder}")
+    
     cpy = f"{base}.wav"
     print(f"cpy: {cpy}")
-    cpy_path = os.path.join(tmp_folder,cpy_folder, cpy)
-    print(f"cpy_path: {cpy_path}")
 
+    aa_common.clear_screen()
     # Prompt for method choice using input_with_defaults
     method = aa_common.input_with_defaults(
         f"\nChoose a method of segmenting the file {cpy}\n"
@@ -142,7 +147,6 @@ def run():
         aa_common.accept_all_defaults = True  # Set the global flag to accept defaults
 
     # Check if tmp folder exists before proceeding
-    tmp_folder = aa_common.get_tmp_folder()
     if os.path.exists(tmp_folder):
         cleanup_choice = aa_common.input_with_defaults("Tmp folder exists, remove? (Y or ENTER / n to quit): ").strip().lower() or 'y'
 
@@ -151,13 +155,22 @@ def run():
         else:
             print("Quitting script.")
             exit()  # Quit the script if the user chooses 'n'
-    else:
-        # If the tmp folder does not exist, create it
-        aa_common.ensure_tmp_folder()
+    
+    # CRITICAL FIX: Always ensure directories exist after cleanup
+    # Create the tmp folder structure
+    aa_common.ensure_tmp_folder()
+    
+    # Ensure the cpy subfolder exists
+    os.makedirs(actual_cpy_folder, exist_ok=True)
+    print(f"Ensured cpy folder exists: {actual_cpy_folder}")
 
+    # CRITICAL FIX: Copy files with correct destination path
     for file_name in selected_files:
         source_file_path = os.path.join(aa_common.source_folder, file_name)
-        shutil.copy2(source_file_path, cpy_folder)
+        dest_file_path = os.path.join(actual_cpy_folder, file_name)
+        print(f"Copying: {source_file_path}")
+        print(f"     to: {dest_file_path}")
+        shutil.copy2(source_file_path, dest_file_path)
 
     # Return the selected files list
     return selected_files

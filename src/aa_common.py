@@ -10,6 +10,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+from pathlib import Path
+from struct import pack
+
+
 
 # Global variables
 source_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "input")
@@ -17,7 +21,7 @@ ext = ".wav"
 _start_file_name = ""
 _start_file = ""
 _base = ""
-tmp_folder = ""
+tmp_folder = "tmp"
 cpy_folder = os.path.join(tmp_folder, "cpy")
 global_settings = {}  # Global settings dictionary
 wavecycle_samples_target_192 = 0  # Global variable for target samples per wavecycle
@@ -27,17 +31,47 @@ wavecycle_samples_target = 0  # Global variable to store the selected target
 mode_interval = 0
 autocorrelation_flag = False  # Default to not using autocorrelation
 global_segment_sizes = []
+segment_positions = {}  # segment_name -> start sample index in source cpy file
 highlighted_segment = []  # Track the highlighted segment so we can clear it
 sample_index = 0  # Global variable to store the current sample index
 wavecycle_size = 2048
 frame_count = 256
 accept_all_defaults = False
 # Global zero threshold in decibels and window size
-ZERO_THRESHOLD_DB = -40
+ZERO_THRESHOLD_DB = -30
 # Number of samples to consider for rising/falling checks
-ZERO_WINDOW = 32
-sputter= 32 # was (frame_count - 1) * wavecycle_size
+ZERO_WINDOW = 64
+sputter= 64 # was (frame_count - 1) * wavecycle_size
 
+def clear_screen():
+    """Clear the terminal before an interactive selection menu.
+    Uses ANSI escapes (supported in Win10+ cmd, all Unix terminals)."""
+    print('\033[2J\033[H', end='')
+
+
+def get_tmp_folder():
+    return tmp_folder
+
+def get_wavecycle_samples():
+    """Return the global wavecycle_samples dictionary."""
+    global wavecycle_samples
+    return wavecycle_samples
+
+def set_wavecycle_samples(segment_name, sample_count):
+    """Update the global wavecycle_samples dictionary."""
+    global wavecycle_samples
+    wavecycle_samples[segment_name] = sample_count
+
+def get_wavecycle_samples_target():
+    """Return the global wavecycle_samples_target."""
+    global wavecycle_samples_target
+    print(f"[aa_common] GET wavecycle_samples_target: {wavecycle_samples_target}")
+    return wavecycle_samples_target
+
+def set_wavecycle_samples_target(value):
+    """Set the global wavecycle_samples_target."""
+    global wavecycle_samples_target
+    wavecycle_samples_target = value
 
 def db_to_amplitude(db_value):
     """
@@ -54,6 +88,22 @@ def set_all_segment_sizes(sizes):
 
 def get_all_segment_sizes():
     return global_segment_sizes
+
+def set_segment_position(segment_name, start_sample_index):
+    """Record where a segment starts in the original cpy audio.
+    Used by the Burg-based onset attack detector to map onset sample indices
+    back to specific segment files."""
+    global segment_positions
+    segment_positions[segment_name] = int(start_sample_index)
+
+def get_segment_positions():
+    """Return the {segment_name: start_sample_index} dict."""
+    global segment_positions
+    return segment_positions
+
+def clear_segment_positions():
+    global segment_positions
+    segment_positions = {}
 
 # Function to set the mode_interval
 def set_mode_interval(samples):
@@ -77,15 +127,22 @@ def get_autocorrelation_flag():
 
 def initialize_settings():
     global global_settings
-    # Initial settings with default values
     global_settings = {
-        'zero_crossing_method': 1,  # Add default method for zero crossing
-        'percent_tolerance': 5,  # Default tolerance percent
-        'discard_atk_choice': 'N',  # Default choice for discarding attack segments
-        'discard_dev_choice': 'N',  # Default choice for discarding deviant segments
-        'discard_good_choice': 'N',  # Default choice for discarding good segments
-        'cleanup_choice': 'Y',  # Default choice for cleanup
-        'accept_current_settings': False  # Track if settings are accepted
+        'zero_crossing_method': 1,
+        'percent_tolerance': 5,
+        'discard_atk_choice': 'N',
+        'discard_dev_choice': 'N',
+        'discard_good_choice': 'N',
+        'cleanup_choice': 'Y',
+        'accept_current_settings': False,
+        'percent_tolerance_autocorr': 10,
+        'autocorr_prominence': 0.5,
+        'use_adaptive_tolerance': True,
+        'add_method_tags': True,
+        'preserve_suffixes': True,
+        'skip_correct_length_interp': True,
+        'align_to_zero_cross': True,
+        'onset_sensitivity': 3.0,  # Burg onset detector ratio threshold (lower = more onsets)
     }
     return global_settings
 
@@ -292,9 +349,6 @@ def get_start_file():
 def get_base():
     return _base
 
-def get_tmp_folder():
-    return tmp_folder
-
 def ensure_tmp_folder():
     """
     Ensures that both the base and tmp folders exist. If not, they are created.
@@ -443,25 +497,7 @@ def is_full_wavecycle(segment, amplitude_tolerance_db=-60):
 
     return True
 
-def get_wavecycle_samples():
-    """Return the global wavecycle_samples dictionary."""
-    global wavecycle_samples
-    return wavecycle_samples
 
-def set_wavecycle_samples(segment_name, sample_count):
-    """Update the global wavecycle_samples dictionary."""
-    global wavecycle_samples
-    wavecycle_samples[segment_name] = sample_count
-
-def get_wavecycle_samples_target():
-    """Return the global wavecycle_samples_target."""
-    global wavecycle_samples_target
-    return wavecycle_samples_target
-
-def set_wavecycle_samples_target(value):
-    """Set the global wavecycle_samples_target."""
-    global wavecycle_samples_target
-    wavecycle_samples_target = value
 
 def get_segment_sizes(base, tmp_folder, ext):
     segment_files = [f for f in os.listdir(tmp_folder) if f.startswith(f"{base}_seg") and f.endswith(ext)]
@@ -491,8 +527,7 @@ def print_segment_info(
     upper_bound_samples,
     discarding_atk, 
     discarding_dev, 
-    discarding_good
-):
+    discarding_good):
     # Use seg_folder instead of tmp_folder
     seg_folder = os.path.join(get_tmp_folder(), "seg")
 
@@ -795,6 +830,35 @@ def resample_to_power_of_two(single_cycles_192k32b, wavecycle_samples_target_192
             sf.write(pwr2_192_file_path, interpolated_data, original_sr, subtype='FLOAT')
     return single_cycles_pwr2_any
 
+def add_serum_chunk(wav_path: Path):
+    """
+    Append a Serum/Vital-compatible 'clm ' wavetable marker chunk to a WAV
+    and extend the RIFF size in the header so the chunk is inside the
+    declared RIFF region. WAV must already be in 2048-samples-per-frame
+    format. See https://www.kvraudio.com/forum/viewtopic.php?t=517146
+    """
+    comment = "<!>2048 00000000 wavetable (www.xferrecords.com)"
+    payload = comment.encode("utf8")
+    # RIFF subchunks must be word-aligned (even byte count). Pad if odd.
+    if len(payload) % 2:
+        payload = payload + b"\x00"
+    chunk_id = b"clm "
+    clm_chunk = chunk_id + pack("<I", len(payload)) + payload  # 8-byte header + payload
+
+    with wav_path.open("r+b") as f:
+        # Read existing RIFF size from header (bytes 4..7, little-endian).
+        f.seek(4)
+        riff_size = int.from_bytes(f.read(4), "little")
+
+        # Append the chunk to end of file.
+        f.seek(0, 2)
+        f.write(clm_chunk)
+
+        # Extend the RIFF size to include the new chunk so strict parsers
+        # see it inside the container.
+        f.seek(4)
+        f.write(pack("<I", riff_size + len(clm_chunk)))
+        
 def perform_cleanup():
     """
     Performs cleanup by deleting the tmp folder.
@@ -824,25 +888,238 @@ def delete_base_folder():
         # print("Temporary folder cleanup completed.")
     except Exception as e:
         print(f"An error occurred during tmp folder cleanup: {e}")
-'''
-def delete_base_folder():
+def calculate_mode_wavecycle_length(lengths):
     """
-    Prompts the user to decide whether to delete the base folder and its contents.
+    Calculate the mode of the provided wavecycle lengths.
+    If no mode is found, return 0.
     """
-    base_folder = get_base()
-    if not os.path.exists(base_folder):
-        print(f"Base folder {base_folder} does not exist.")
-        return
+    if len(lengths) == 0:
+        return 0
+    values, counts = np.unique(lengths, return_counts=True)
+    mode_val = values[np.argmax(counts)]
+    return int(mode_val)
 
-    # Ask the user for confirmation
-    delete_base = input_with_defaults(f"Do you want to delete the base folder '{base_folder}' and all its contents? (Y/n): ").strip().lower() or 'y'
-    if delete_base == 'y':
-        try:
-            shutil.rmtree(base_folder)
-            print(f"Deleted base folder: {base_folder}")
-        except Exception as e:
-            print(f"An error occurred during base folder cleanup: {e}")
+# aa_common_additions.py
+# These functions should be ADDED to aa_common.py to support the fixes
+
+def get_method_suffix():
+    """
+    Returns the method suffix for filenames.
+    FIX #28: Add method tags to identify segmentation method used.
+    
+    Returns:
+        '_a' for autocorrelation
+        '_z' for zero-crossing
+    """
+    global autocorrelation_flag
+    return "_a" if autocorrelation_flag else "_z"
+
+def add_suffix_to_filename(filename, suffix):
+    """
+    Add suffix to filename without duplicating.
+    FIX #30: Prevents _chunk_chunk and similar issues.
+    
+    Args:
+        filename: The original filename (with or without extension)
+        suffix: The suffix to add (without underscore)
+    
+    Returns:
+        Filename with suffix added (or unchanged if already present)
+    
+    Examples:
+        add_suffix_to_filename("test.wav", "chunk") -> "test_chunk.wav"
+        add_suffix_to_filename("test_chunk.wav", "chunk") -> "test_chunk.wav"
+        add_suffix_to_filename("test_chunk", "norm") -> "test_chunk_norm"
+    """
+    base, ext = os.path.splitext(filename)
+    
+    # Check if suffix already present
+    if base.endswith(f"_{suffix}"):
+        return filename
+    
+    # Add new suffix
+    return f"{base}_{suffix}{ext}"
+
+def sanitize_filename(filename):
+    """
+    Sanitize filename by stripping whitespace and removing invalid characters.
+    FIX #36: Prevents trailing spaces from breaking os.makedirs()
+    
+    Args:
+        filename: The original filename
+    
+    Returns:
+        Sanitized filename safe for filesystem operations
+    """
+    # Strip leading/trailing whitespace
+    filename = filename.strip()
+    
+    # Remove problematic characters but keep common safe ones
+    # Allows: alphanumeric, spaces, dots, dashes, underscores
+    filename = re.sub(r'[^\w\s\-\.]', '', filename)
+    
+    # Replace multiple spaces with single space
+    filename = re.sub(r'\s+', ' ', filename)
+    
+    # Remove any trailing dots (problematic on Windows)
+    filename = filename.rstrip('.')
+    
+    return filename
+
+def find_nearest_zero_crossing(data, sample_index, window=None, threshold=None):
+    """
+    Find the nearest zero crossing to the given sample index.
+    FIX: Zero-crossing alignment for pick mode
+    
+    Args:
+        data: Audio data array
+        sample_index: Target sample index
+        window: Search window size (default: ZERO_WINDOW from aa_common)
+        threshold: Amplitude threshold (default: zero_threshold from aa_common)
+    
+    Returns:
+        Index of nearest zero crossing, or original index if none found
+    """
+    global zero_threshold, ZERO_WINDOW
+    
+    if window is None:
+        window = ZERO_WINDOW
+    if threshold is None:
+        threshold = zero_threshold
+    
+    # Define search window
+    start = max(0, sample_index - window)
+    end = min(len(data), sample_index + window)
+    
+    if start >= end:
+        return sample_index
+    
+    # Extract segment
+    segment = data[start:end]
+    
+    # Find zero crossings with low amplitude
+    crossings = []
+    for i in range(1, len(segment)):
+        # Check if sign changes (crosses zero)
+        if (segment[i-1] * segment[i]) <= 0:
+            # Check if both points are below threshold amplitude
+            if abs(segment[i]) < threshold and abs(segment[i-1]) < threshold:
+                actual_index = start + i
+                crossings.append(actual_index)
+    
+    if crossings:
+        # Return crossing nearest to original index
+        nearest = min(crossings, key=lambda x: abs(x - sample_index))
+        return nearest
     else:
-        print("Base folder not deleted.")
+        # No suitable crossing found within threshold
+        # Try again with relaxed threshold
+        relaxed_threshold = threshold * 2
+        for i in range(1, len(segment)):
+            if (segment[i-1] * segment[i]) <= 0:
+                if abs(segment[i]) < relaxed_threshold or abs(segment[i-1]) < relaxed_threshold:
+                    actual_index = start + i
+                    crossings.append(actual_index)
+        
+        if crossings:
+            nearest = min(crossings, key=lambda x: abs(x - sample_index))
+            return nearest
+        else:
+            # Still nothing - return original
+            return sample_index
 
-'''
+def calculate_adaptive_tolerance_percentage(segment_lengths, base_tolerance=5.0):
+    """
+    Calculate adaptive tolerance based on variance in segment lengths.
+    FIX #22: More variance requires wider tolerance.
+    
+    Args:
+        segment_lengths: Dictionary or list of segment lengths
+        base_tolerance: Base tolerance percentage (default: 5%)
+    
+    Returns:
+        Adaptive tolerance percentage (capped at 20%)
+    """
+    if isinstance(segment_lengths, dict):
+        lengths = list(segment_lengths.values())
+    else:
+        lengths = list(segment_lengths)
+    
+    if not lengths:
+        return base_tolerance
+    
+    # Calculate coefficient of variation
+    std_dev = np.std(lengths)
+    mean_length = np.mean(lengths)
+    
+    if mean_length == 0:
+        return base_tolerance
+    
+    cv = std_dev / mean_length
+    
+    # Increase tolerance proportionally to variation
+    # cv > 0.05 (5% std dev) triggers increase
+    if cv > 0.05:
+        adaptive_tolerance = base_tolerance * (1 + cv * 10)
+    else:
+        adaptive_tolerance = base_tolerance
+    
+    # Cap maximum tolerance at 20%
+    return min(adaptive_tolerance, 20.0)
+
+def validate_segment_distribution(segment_sizes, lower_bound, upper_bound):
+    """
+    Validate that segment distribution is reasonable.
+    FIX #22: Helps diagnose autocorrelation issues.
+    
+    Args:
+        segment_sizes: List of (filename, size) tuples
+        lower_bound: Lower tolerance bound
+        upper_bound: Upper tolerance bound
+    
+    Returns:
+        (is_valid, warning_message) tuple
+    """
+    total = len(segment_sizes)
+    
+    if total == 0:
+        return False, "❌ No segments found at all!"
+    
+    # Count segments within tolerance
+    within_tolerance = sum(1 for _, size in segment_sizes 
+                          if lower_bound <= size <= upper_bound)
+    
+    within_percent = (within_tolerance / total) * 100
+    
+    # Determine validity
+    if within_percent < 10:
+        msg = (f"❌ Only {within_percent:.1f}% of segments within tolerance!\n"
+               f"   Try: widening tolerance, using other method, or checking input audio")
+        return False, msg
+    elif within_percent < 30:
+        msg = f"⚠️  Warning: Only {within_percent:.1f}% of segments within tolerance"
+        return True, msg
+    else:
+        return True, None
+
+def get_timestamped_filename(base, suffix, extension=".wav"):
+    """
+    Generate a timestamped filename with method tag.
+    FIX #28: Include method tag in output filenames.
+    
+    Args:
+        base: Base filename (without extension)
+        suffix: Descriptive suffix (e.g., "chunk", "pick", "full")
+        extension: File extension (default: ".wav")
+    
+    Returns:
+        Formatted filename like "base_z_20260205_143022_chunk.wav"
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    method_tag = get_method_suffix()
+    
+    # Sanitize base to prevent issues
+    base = sanitize_filename(base)
+    
+    return f"{base}{method_tag}_{timestamp}_{suffix}{extension}"
+

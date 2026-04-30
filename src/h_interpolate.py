@@ -1,9 +1,11 @@
 # h_interpolate.py
 
 import os
+import shutil
 import numpy as np
 import soundfile as sf
 import re
+from tqdm import tqdm
 
 # Move imports inside the function to avoid circular import issues
 
@@ -31,25 +33,29 @@ def run(total_segments, total_deviant_segments, total_normal_segments, total_att
 
     print("\nInterpolating...")
 
-    # Iterate through all files in the seg folder, filtering with the regex pattern
-    for file in os.listdir(seg_folder):
+    # Import wavecycle_size locally to avoid circular dependency
+    from aa_common import wavecycle_size
+
+    # Pre-filter so the progress bar's total reflects actual work, not directory size.
+    seg_files = [f for f in os.listdir(seg_folder) if pattern.match(f)]
+
+    for file in tqdm(seg_files, desc="  interpolating", unit="seg"):
         if pattern.match(file):
             seg_file_path = os.path.join(seg_folder, file)
+            single_cycles_192k32b_path = os.path.join(singles_folder, file)
 
-            # Read the original segment and proceed with interpolation
+            # Read the original segment
             data, samplerate = sf.read(seg_file_path)
-            info = sf.info(seg_file_path)
 
-            # Determine the correct subtype for writing
-            write_subtype = 'FLOAT'
-            if info.subtype in ['PCM_16', 'PCM_24', 'PCM_32']:
-                write_subtype = info.subtype
+            # Skip resampling if the segment is already exactly wavecycle_size samples.
+            # Resampling identity-length data introduces unnecessary numerical drift,
+            # which matters for the sine null test.
+            if len(data) == wavecycle_size:
+                shutil.copy2(seg_file_path, single_cycles_192k32b_path)
+                continue
 
             # Apply interpolation to adjust the segment length
             interpolated_segment = interpolate_seg(data, samplerate)
-
-            # Write the interpolated segment to the 'frames' folder
-            single_cycles_192k32b_path = os.path.join(singles_folder, file)
             sf.write(single_cycles_192k32b_path, interpolated_segment, samplerate, subtype='FLOAT')
 
     # print("\nInterpolation complete. Files saved to 'frames' folder.")

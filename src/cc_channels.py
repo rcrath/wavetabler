@@ -89,13 +89,36 @@ def save_channel_files(channels, sample_rate, base, tmp_folder):
     return file_paths
 
 
+def parse_channel_selection(selections, total_channels):
+    """Parse mixed range and comma input like '1-2,4'. Returns sorted 0-based indices, or None on error."""
+    selected_indices = set()
+    try:
+        for part in selections.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                selected_indices.update(range(start - 1, end))
+            else:
+                selected_indices.add(int(part) - 1)
+    except (ValueError, IndexError) as e:
+        print(f"Error parsing selection: {e}. Use format: 1 or 1,3 or 1-2 or 1-2,4")
+        return None
+
+    selected_indices = {i for i in selected_indices if 0 <= i < total_channels}
+    if not selected_indices:
+        return None
+    return sorted(selected_indices)
+
+
 def choose_channels(file_paths):
     """
     Select channels to proceed with. Supports defaults for 'Mid' or 'Mono' channels.
-    
+
     Parameters:
     - file_paths: dict, mapping channel names to file paths.
-    
+
     Returns:
     - dict, selected channels.
     """
@@ -104,38 +127,35 @@ def choose_channels(file_paths):
         # If mono, skip the menu and proceed directly with the mono channel
         print(f"Proceed with Mono channel: {file_paths['Mono']}")
         return {'Mono': file_paths['Mono']}
-    else:
-        # Reorder channels for stereo files: "Mid", "Side", "Left", "Right"
-        ordered_channels = []
-        if 'Mid' in file_paths:
-            ordered_channels.append('Mid')
-        if 'Side' in file_paths:
-            ordered_channels.append('Side')
-        if 'Left' in file_paths:
-            ordered_channels.append('Left')
-        if 'Right' in file_paths:
-            ordered_channels.append('Right')
 
-        print("\nAvailable channels:")
-        for i, name in enumerate(ordered_channels, start=1):
-            print(f"{i}. {name} ({os.path.basename(file_paths[name])})")
-        
-        # Use input_with_defaults to handle default selection
+    # Reorder channels for stereo files: "Mid", "Side", "Left", "Right"
+    ordered_channels = []
+    if 'Mid' in file_paths:
+        ordered_channels.append('Mid')
+    if 'Side' in file_paths:
+        ordered_channels.append('Side')
+    if 'Left' in file_paths:
+        ordered_channels.append('Left')
+    if 'Right' in file_paths:
+        ordered_channels.append('Right')
+
+    aa_common.clear_screen()
+    print("\nAvailable channels:")
+    for i, name in enumerate(ordered_channels, start=1):
+        print(f"{i}. {name} ({os.path.basename(file_paths[name])})")
+
+    while True:
         selections = aa_common.input_with_defaults(
-            "\nEnter the numbers of the channels to proceed with (e.g., 1,2 or 1-4, default=1): ",
+            "\nEnter the numbers of the channels to proceed with (e.g., 1, 1,3, 1-2, or 1-2,4 — default=1): ",
             default="1"
         ).strip()
 
-        # Parse the input to select channels
-        selected_channels = []
-        if '-' in selections:
-            start, end = map(int, selections.split('-'))
-            selected_channels = ordered_channels[start-1:end]
-        else:
-            indices = map(int, selections.split(','))
-            selected_channels = [ordered_channels[i-1] for i in indices]
-
-        return {name: file_paths[name] for name in selected_channels}
+        selected_indices = parse_channel_selection(selections, len(ordered_channels))
+        if selected_indices is not None:
+            selected_channels = [ordered_channels[i] for i in selected_indices]
+            print(f"Selected channels: {', '.join(selected_channels)}")
+            return {name: file_paths[name] for name in selected_channels}
+        print("Invalid selection. Please try again.")
 
 
 def high_pass_filter(data, sample_rate, cutoff_freq=10):

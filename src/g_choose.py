@@ -16,7 +16,7 @@ def rename_segments(directory):
             os.rename(old_path, new_path)
 
 def run(settings, total_segments, total_deviant_segments, total_normal_segments, total_attack_segments, first_iteration, lower_bound_samples, upper_bound_samples):
-    from aa_common import input_with_defaults, print_segment_info, get_tmp_folder, get_wavecycle_samples_target, set_wavecycle_samples_target, get_wavecycle_samples
+    from aa_common import input_with_defaults, print_segment_info, get_tmp_folder, get_wavecycle_samples_target, set_wavecycle_samples_target, get_wavecycle_samples, clear_screen
 
     seg_folder = os.path.join(get_tmp_folder(), "seg")
 
@@ -25,6 +25,7 @@ def run(settings, total_segments, total_deviant_segments, total_normal_segments,
     normal_deleted = False
 
     while True:
+        clear_screen()
         print_segment_info(
             total_segments, 
             total_deviant_segments, 
@@ -68,6 +69,7 @@ def run(settings, total_segments, total_deviant_segments, total_normal_segments,
 
         settings['custom_wavecycle_samples_target'] = get_wavecycle_samples_target()
 
+    clear_screen()
     keep_atk_segments = input_with_defaults("Do you want to keep attack segments? (Y/n): ").strip().lower() or 'y'
     keep_dev_segments = input_with_defaults("Do you want to keep deviant segments? (Y/n): ").strip().lower() or 'y'
     keep_normal_segments = input_with_defaults("Do you want to keep normal segments? (Y/n): ").strip().lower() or 'y'

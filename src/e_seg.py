@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import soundfile as sf
+from tqdm import tqdm
 import aa_common
 
 # Local version of is_rising_zero_crossing for segmentation
@@ -39,8 +40,9 @@ def run_segment(file_path):
 
     # print(f"Segmenting {file_path} . . .")
 
-    # Loop through data to segment based on zero-crossings
-    for i in range(1, len(data)):
+    # Loop through data to segment based on zero-crossings.
+    # mininterval keeps the bar from spamming stdout on every sample.
+    for i in tqdm(range(1, len(data)), desc=f"  scanning {base}", unit="sample", mininterval=0.1, leave=False):
         if not in_segment and aa_common.is_rising_from_zero(data[i:i + 8]):
             # Start of a new segment
             in_segment = True
@@ -54,28 +56,21 @@ def run_segment(file_path):
                 segment_name = f"{base}_seg_{len(segment_sizes):04d}.wav"
                 segment_sizes.append((segment_name, len(wave_cycle)))
 
-                # Save the segment
                 sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-                # print(f"Segment saved: {segment_name}, length: {len(wave_cycle)}")
+                aa_common.set_segment_position(segment_name, prev_start_index)
             else:
-                # print(f"Skipped short segment at index {prev_start_index}: length={len(wave_cycle)}")
                 continue
-            # Prepare for the next segment
             in_segment = False
 
     # Handle any remaining data at the end of the file
     if in_segment and aa_common.is_rising_to_zero(data[prev_start_index:]):
         wave_cycle = data[prev_start_index:]
-        if len(wave_cycle) >= min_segment_size:  # Only save segments with more than 64 samples
+        if len(wave_cycle) >= min_segment_size:
             segment_name = f"{base}_seg_{len(segment_sizes):04d}.wav"
             segment_sizes.append((segment_name, len(wave_cycle)))
 
-            # Save the final segment
             sf.write(os.path.join(seg_folder, segment_name), wave_cycle, samplerate)
-            # print(f"Final segment saved: {segment_name}, length: {len(wave_cycle)}")
-        else:
-            # print(f"Skipped saving final segment: too short (length={len(wave_cycle)})")
-            pass
+            aa_common.set_segment_position(segment_name, prev_start_index)
     print(f"Segmentation complete. Total segments: {len(segment_sizes)}")
     return segment_sizes
 
@@ -122,6 +117,9 @@ def run(processed_files):
     tmp_folder = aa_common.get_tmp_folder()
     seg_folder = os.path.join(tmp_folder, "seg")
 
+    # Reset accumulators so a re-run doesn't see stale entries from a prior file.
+    aa_common.clear_segment_positions()
+
     segment_sizes = []
 
     # Use the files from the src folder inside tmp
@@ -140,9 +138,13 @@ def run(processed_files):
 
         segment_sizes.extend(new_segment_sizes)
 
+    # Push to the module-level list f_sort reads. Without this, f_sort sees
+    # an empty list and silently skips both deviant- and onset-marking — which
+    # is why zero-cross mode produced 0 attacks regardless of input.
+    aa_common.set_all_segment_sizes(segment_sizes)
+
     # Validate all the segments
     if not validate_all_segments(seg_folder):
         print("Segment validation failed. Please check the invalid segments.")
 
-    # Store segment sizes for later use
-    aa_common.set_all_segment_sizes(segment_sizes)
+ 
